@@ -1,6 +1,21 @@
+name: hackathon
+
 services:
   backend:
     build: ./backend
     ports:
       - "8000:8000"
+    networks:
+      - default
+      - sandbox_net
     restart: unless-stopped
+
+  sandbox:
+    build: ./sandbox
+    networks:
+      - sandbox_net
+    restart: unless-stopped
+
+networks:
+  sandbox_net:
+    internal: true
