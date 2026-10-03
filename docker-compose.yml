@@ -9,14 +9,14 @@ services:
       - default
       - sandbox_net
     restart: unless-stopped
+    environment:
+      - LLM_API_KEY=${LLM_API_KEY}
 
   sandbox:
     build: ./sandbox
     networks:
       - sandbox_net
     restart: unless-stopped
-    environment:
-      - LLM_API_KEY=${LLM_API_KEY}
     read_only: true
     tmpfs:
       - /tmp
