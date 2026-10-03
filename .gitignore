@@ -1,7 +1,38 @@
 # Others
 detekcni_agent_upraveny_tok.png
 
-# Code
-
-# Secrets
+# --- Tajemství a konfigurace ---
 .env
+.env.*
+!.env.example
+
+# --- Node.js / Next.js (frontend) ---
+node_modules/
+.next/
+out/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.tsbuildinfo
+next-env.d.ts
+
+# --- Python (backend, sandbox) ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- Editor a OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Logy a dočasné soubory ---
+*.log
+tmp/
