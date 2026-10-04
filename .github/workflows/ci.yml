@@ -19,16 +19,25 @@ jobs:
           python-version: "3.12"
       - run: pip install -r requirements.txt -r requirements-dev.txt
       - run: python -m pytest
+
   deploy:
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: [self-hosted, macOS, ARM64]
     steps:
       - uses: actions/checkout@v4
-      - run: docker compose up --build -d
+
+      - name: Build and start containers
+        run: docker compose up --build -d
         env:
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-      - run: curl --fail --retry 10 --retry-delay 3 --retry-all-errors http://localhost:8000/health
+
+      - name: Backend health check
+        run: curl --fail --retry 10 --retry-delay 3 --retry-all-errors http://localhost:8000/health
+
+      - name: Frontend health check
+        run: curl --fail --retry 10 --retry-delay 3 --retry-all-errors http://localhost:3000
+
       - name: Sandbox security checks
         run: |
           if docker exec hackathon-sandbox-1 printenv LLM_API_KEY > /dev/null; then
