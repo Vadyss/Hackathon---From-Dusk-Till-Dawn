@@ -1,6 +1,12 @@
 name: hackathon
 
 services:
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:8080"
+    restart: unless-stopped
+
   backend:
     build: ./backend
     ports:
