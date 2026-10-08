@@ -1,7 +1,7 @@
-// HTTP klient podle kapitoly 7. Volá jen adresy pod /api/.
+// HTTP client per contract chapter 7. Only calls URLs under /api/.
 import type { RunEvent, RunInfo, SkillInfo } from "./types";
 
-// Kapitola 7.3: prázdná hodnota = relativní adresy na stejném hostiteli.
+// Contract 7.3: empty value means relative URLs on the same host.
 export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE ?? "").replace(/\/+$/, "");
 
 export function apiUrl(path: string): string {
@@ -39,20 +39,20 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       cache: "no-store",
     });
   } catch {
-    throw new ApiError(0, "NETWORK_ERROR", "Backend není dostupný.");
+    throw new ApiError(0, "NETWORK_ERROR", "Can't reach the backend.");
   }
   let body: unknown = null;
   try {
     body = await res.json();
   } catch {
-    // tělo není JSON
+    // body is not JSON
   }
   if (!res.ok) {
     const err = (body as { error?: { code?: unknown; message?: unknown } } | null)?.error;
     throw new ApiError(
       res.status,
       typeof err?.code === "string" ? err.code : "UNKNOWN",
-      typeof err?.message === "string" ? err.message : `Chyba HTTP ${res.status}.`,
+      typeof err?.message === "string" ? err.message : `Request failed (HTTP ${res.status}).`,
     );
   }
   return body as T;

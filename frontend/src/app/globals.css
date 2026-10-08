@@ -1,33 +1,65 @@
 @import "tailwindcss";
 
-@theme {
-  --color-bg: #0a0e14;
-  --color-panel: #111720;
-  --color-line: #1f2935;
-  --color-fg: #e3e9f0;
-  --color-muted: #7d8a99;
-  --color-accent: #3ee6a8;
-  --color-ok: #4ade80;
-  --color-bad: #f8717f;
-  --color-warn: #fbbf4c;
-  --color-info: #60b5fa;
+:root {
+  --bg: #ffffff;
+  --sidebar: #f9f9f9;
+  --surface: #f4f4f4;
+  --hover: #ececec;
+  --line: #e5e5e5;
+  --fg: #0d0d0d;
+  --muted: #5d5d5d;
+  --subtle: #8f8f8f;
+  --ok: #15803d;
+  --bad: #c62828;
+  --warn: #a15c07;
+  --info: #2563eb;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #212121;
+    --sidebar: #171717;
+    --surface: #2f2f2f;
+    --hover: #2a2a2a;
+    --line: #3a3a3a;
+    --fg: #ececec;
+    --muted: #b4b4b4;
+    --subtle: #8a8a8a;
+    --ok: #4ade80;
+    --bad: #f87171;
+    --warn: #fbbf24;
+    --info: #60a5fa;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-sidebar: var(--sidebar);
+  --color-surface: var(--surface);
+  --color-hover: var(--hover);
+  --color-line: var(--line);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-ok: var(--ok);
+  --color-bad: var(--bad);
+  --color-warn: var(--warn);
+  --color-info: var(--info);
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
 html {
-  color-scheme: dark;
+  color-scheme: light dark;
 }
 
 body {
-  background:
-    radial-gradient(1200px 500px at 15% -10%, rgb(62 230 168 / 0.07), transparent 60%),
-    var(--color-bg);
-  color: var(--color-fg);
+  background: var(--bg);
+  color: var(--fg);
   font-family: var(--font-sans);
 }
 
-/* Kapitola 5.2: dlouhé řetězce bez mezer nesmí rozbít rozložení. */
+/* Contract 5.2: long strings without spaces must not break the layout. */
 p,
 li,
 span,
@@ -38,10 +70,10 @@ h3 {
   overflow-wrap: anywhere;
 }
 
-@keyframes fade-in-up {
+@keyframes fade-in {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(2px);
   }
   to {
     opacity: 1;
@@ -50,14 +82,29 @@ h3 {
 }
 
 .animate-in {
-  animation: fade-in-up 0.25s ease-out;
+  animation: fade-in 0.2s ease-out;
 }
 
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
 }
-::-webkit-scrollbar-thumb {
-  background: var(--color-line);
-  border-radius: 4px;
+
+/* "Thinking" text shimmer, as used by chat assistants */
+.shimmer {
+  background: linear-gradient(90deg, var(--subtle) 25%, var(--fg) 50%, var(--subtle) 75%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 2.2s linear infinite;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
 }

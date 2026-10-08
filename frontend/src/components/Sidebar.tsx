@@ -1,119 +1,92 @@
-import {
-  candidateSkills,
-  formatDateTime,
-  reusedSkillNames,
-  runRequest,
-  runStatus,
-} from "@/lib/derive";
-import type { RunState } from "@/lib/engine";
-import type { SkillInfo } from "@/lib/types";
-import { Badge, Empty, Panel, StatusBadge } from "./ui";
+"use client";
 
-export function RunsList({
+import { formatRelative, runCreatedAt, runRequest, runStatus } from "@/lib/derive";
+import type { Connection, RunState } from "@/lib/engine";
+import { IconPlus, IconSidebar, Logo } from "./icons";
+import { StatusDot } from "./ui";
+
+export function Sidebar({
   runs,
   selected,
   onSelect,
+  onNew,
+  onClose,
+  connection,
 }: {
   runs: RunState[];
   selected: string | null;
   onSelect: (id: string) => void;
+  onNew: () => void;
+  onClose: () => void;
+  connection: Connection;
 }) {
   return (
-    <Panel title="Běhy" right={<span className="font-mono text-[11px] text-muted">{runs.length}</span>}>
-      {runs.length === 0 ? (
-        <Empty>Zatím žádný běh. Zadej první požadavek.</Empty>
-      ) : (
-        <ul className="-mx-2 max-h-[40vh] space-y-1 overflow-y-auto">
-          {runs.map((r) => {
-            const active = r.run_id === selected;
-            return (
-              <li key={r.run_id}>
-                <button
-                  type="button"
-                  onClick={() => onSelect(r.run_id)}
-                  className={`w-full rounded-lg px-2 py-2 text-left transition ${
-                    active ? "bg-accent/10 ring-1 ring-accent/40" : "hover:bg-bg"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono text-[11px] text-muted">{r.run_id}</span>
-                    <StatusBadge status={runStatus(r)} />
-                  </div>
-                  <p className="mt-1 line-clamp-2 text-sm break-all text-fg">
-                    {runRequest(r) ?? "…"}
-                  </p>
-                  <p className="mt-0.5 text-[11px] text-muted">{formatDateTime(r.created_at)}</p>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </Panel>
-  );
-}
-
-const KIND_LABEL: Record<string, string> = {
-  parser: "parser",
-  aggregation: "agregace",
-  enrichment: "obohacení",
-};
-
-export function SkillsPanel({ skills, run }: { skills: SkillInfo[]; run: RunState | undefined }) {
-  const reused = reusedSkillNames(run);
-  const candidates = candidateSkills(run).filter((c) => !skills.some((s) => s.name === c.name));
-
-  return (
-    <Panel
-      title="Registr dovedností"
-      right={<span className="font-mono text-[11px] text-muted">{skills.length}</span>}
-    >
-      {skills.length === 0 && candidates.length === 0 ? (
-        <Empty>Registr je prázdný.</Empty>
-      ) : (
-        <ul className="space-y-1.5">
-          {skills.map((s) => {
-            const hot = reused.has(s.name);
-            return (
-              <li
-                key={s.name}
-                className={`rounded-lg border p-2 transition ${
-                  hot ? "border-info/50 bg-info/5" : "border-line"
-                }`}
-              >
-                <SkillRow skill={s} />
-                {hot && (
-                  <div className="mt-1">
-                    <Badge tone="info">↻ použito v tomto běhu</Badge>
-                  </div>
-                )}
-              </li>
-            );
-          })}
-          {candidates.map((s) => (
-            <li key={`cand-${s.name}`} className="rounded-lg border border-dashed border-warn/50 bg-warn/5 p-2">
-              <SkillRow skill={s} />
-              <div className="mt-1">
-                <Badge tone="warn">kandidát · čeká na schválení</Badge>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Panel>
-  );
-}
-
-function SkillRow({ skill }: { skill: SkillInfo }) {
-  return (
-    <>
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="min-w-0 font-mono text-sm break-all text-fg">{skill.name}</span>
-        <span className="font-mono text-[11px] text-muted">v{skill.version}</span>
-        <Badge>{KIND_LABEL[skill.kind] ?? skill.kind}</Badge>
-        {skill.origin === "agent" ? <Badge tone="accent">od agenta</Badge> : <Badge>výchozí</Badge>}
+    <div className="flex h-full w-[260px] flex-col bg-sidebar">
+      <div className="flex items-center justify-between px-3 pt-3 pb-2">
+        <div className="flex items-center gap-2 px-1.5">
+          <Logo className="size-6 text-fg" />
+          <span className="text-[15px] font-semibold tracking-tight">Frankenstein</span>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close sidebar"
+          className="rounded-lg p-1.5 text-muted hover:bg-hover hover:text-fg"
+        >
+          <IconSidebar className="size-5" />
+        </button>
       </div>
-      <p className="mt-1 text-xs break-words text-muted">{skill.description}</p>
-    </>
+
+      <div className="px-3">
+        <button
+          type="button"
+          onClick={onNew}
+          className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm hover:bg-hover"
+        >
+          <IconPlus className="size-4" />
+          New detection
+        </button>
+      </div>
+
+      <nav className="mt-4 min-h-0 flex-1 overflow-y-auto px-3 pb-3">
+        <div className="px-2.5 pb-1 text-xs font-medium text-subtle">Recent runs</div>
+        {runs.length === 0 ? (
+          <p className="px-2.5 py-1.5 text-sm text-subtle">No runs yet</p>
+        ) : (
+          <ul>
+            {runs.map((r) => {
+              const active = r.run_id === selected;
+              return (
+                <li key={r.run_id}>
+                  <button
+                    type="button"
+                    onClick={() => onSelect(r.run_id)}
+                    className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm ${
+                      active ? "bg-hover" : "hover:bg-hover"
+                    }`}
+                    title={runRequest(r) ?? r.run_id}
+                  >
+                    <StatusDot status={runStatus(r)} />
+                    <span className="min-w-0 flex-1 truncate">{runRequest(r) ?? r.run_id}</span>
+                    <span className="shrink-0 text-[11px] text-subtle">{formatRelative(runCreatedAt(r))}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </nav>
+
+      <div className="border-t border-line px-5 py-3 text-xs text-subtle">
+        <span className="inline-flex items-center gap-2">
+          <span
+            className={`size-1.5 rounded-full ${
+              connection === "open" ? "bg-ok" : connection === "connecting" ? "bg-warn" : "bg-bad animate-pulse"
+            }`}
+          />
+          {connection === "open" ? "Connected" : connection === "connecting" ? "Connecting…" : "Reconnecting…"}
+        </span>
+      </div>
+    </div>
   );
 }

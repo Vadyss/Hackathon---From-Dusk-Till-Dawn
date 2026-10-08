@@ -1,71 +1,13 @@
 [
-  { "type": "run_started", "phase": "intake", "message": "Přijat nový požadavek analytika.", "data": { "request": "" } },
-  {
-    "type": "plan_ready",
-    "phase": "plan",
-    "message": "Plán připraven: 3 kroky, 2 dovednosti.",
-    "data": {
-      "steps": ["Rozparsovat SSH logy", "Spočítat různé uživatele na IP za 5 minut", "Upozornit nad hranicí"],
-      "skills_needed": ["ssh_parser", "distinct_count_window"]
-    }
-  },
-  {
-    "type": "skill_reused",
-    "phase": "plan",
-    "message": "Znovu použiji dovednost ssh_parser z registru.",
-    "data": { "skill": { "name": "ssh_parser", "version": 1, "kind": "parser", "description": "Převede řádky auth.log z OpenSSH na události.", "origin": "seed", "status": "installed", "created_by_run": null, "created_at": "2026-10-04T12:00:00.000Z" } }
-  },
-  {
-    "type": "capability_missing",
-    "phase": "plan",
-    "message": "Chybí 1 dovednost: distinct_count_window.",
-    "data": { "skills": [{ "name": "distinct_count_window", "description": "Počet různých hodnot pole v okně pro skupinu." }] }
-  },
-  {
-    "type": "forge_started",
-    "phase": "forge",
-    "message": "Kovárna staví dovednost distinct_count_window (pokus 1 ze 3).",
-    "data": { "skill": "distinct_count_window", "attempt": 1, "max_attempts": 3 }
-  },
-  {
-    "type": "skill_tests_failed",
-    "phase": "forge",
-    "message": "Dovednost distinct_count_window neprošla testy (pokus 1 ze 3).",
-    "data": { "skill": "distinct_count_window", "attempt": 1, "tests_total": 6, "tests_failed": 3, "error_excerpt": "TypeError: unhashable type: 'list'" }
-  },
-  {
-    "type": "forge_started",
-    "phase": "forge",
-    "message": "Kovárna staví dovednost distinct_count_window (pokus 2 ze 3).",
-    "data": { "skill": "distinct_count_window", "attempt": 2, "max_attempts": 3 }
-  },
-  {
-    "type": "policy_rejected",
-    "phase": "forge",
-    "message": "Vrátný zamítl dovednost distinct_count_window (pokus 2).",
-    "data": {
-      "target": "skill",
-      "name": "distinct_count_window",
-      "attempt": 2,
-      "violations": [{ "code": "FORBIDDEN_IMPORT", "detail": "Import modulu socket není v dovednostech povolen." }]
-    }
-  },
-  {
-    "type": "forge_started",
-    "phase": "forge",
-    "message": "Kovárna staví dovednost distinct_count_window (pokus 3 ze 3).",
-    "data": { "skill": "distinct_count_window", "attempt": 3, "max_attempts": 3 }
-  },
-  {
-    "type": "skill_tests_failed",
-    "phase": "forge",
-    "message": "Dovednost distinct_count_window neprošla testy (pokus 3 ze 3).",
-    "data": { "skill": "distinct_count_window", "attempt": 3, "tests_total": 6, "tests_failed": 1, "error_excerpt": "AssertionError: expected 5, got 4" }
-  },
-  {
-    "type": "run_failed",
-    "phase": "forge",
-    "message": "Běh selhal: kovárna nepostavila dovednost.",
-    "data": { "reason_code": "FORGE_FAILED", "reason": "Dovednost distinct_count_window neprošla testy ani ve 3. pokusu." }
-  }
+  {"type":"run_started","phase":"intake","message":"Received a new analyst request.","data":{"request":""}},
+  {"type":"plan_ready","phase":"plan","message":"Plan ready: 3 steps, 2 skills.","data":{"steps":["Parse the SSH logs","Count distinct users per source IP over 5 minutes","Alert above the threshold"],"skills_needed":["ssh_parser","distinct_count_window"]}},
+  {"type":"skill_reused","phase":"plan","message":"Reusing skill ssh_parser from the registry.","data":{"skill":{"name":"ssh_parser","version":1,"kind":"parser","description":"Parses OpenSSH auth.log lines into events.","origin":"seed","status":"installed","created_by_run":null,"created_at":"2026-10-04T12:00:00.000Z"}}},
+  {"type":"capability_missing","phase":"plan","message":"Missing 1 skill: distinct_count_window.","data":{"skills":[{"name":"distinct_count_window","description":"Distinct values of a field within a time window, per group."}]}},
+  {"type":"forge_started","phase":"forge","message":"Forge is building distinct_count_window (attempt 1 of 3).","data":{"skill":"distinct_count_window","attempt":1,"max_attempts":3}},
+  {"type":"skill_tests_failed","phase":"forge","message":"distinct_count_window failed its tests (attempt 1 of 3).","data":{"skill":"distinct_count_window","attempt":1,"tests_total":6,"tests_failed":3,"error_excerpt":"TypeError: unhashable type: 'list'"}},
+  {"type":"forge_started","phase":"forge","message":"Forge is building distinct_count_window (attempt 2 of 3).","data":{"skill":"distinct_count_window","attempt":2,"max_attempts":3}},
+  {"type":"policy_rejected","phase":"forge","message":"Gatekeeper rejected skill distinct_count_window (attempt 2).","data":{"target":"skill","name":"distinct_count_window","attempt":2,"violations":[{"code":"FORBIDDEN_IMPORT","detail":"Importing the socket module is not allowed in skills."}]}},
+  {"type":"forge_started","phase":"forge","message":"Forge is building distinct_count_window (attempt 3 of 3).","data":{"skill":"distinct_count_window","attempt":3,"max_attempts":3}},
+  {"type":"skill_tests_failed","phase":"forge","message":"distinct_count_window failed its tests (attempt 3 of 3).","data":{"skill":"distinct_count_window","attempt":3,"tests_total":6,"tests_failed":1,"error_excerpt":"AssertionError: expected 5, got 4"}},
+  {"type":"run_failed","phase":"forge","message":"Run failed: the forge could not build the skill.","data":{"reason_code":"FORGE_FAILED","reason":"distinct_count_window still failed its tests on the 3rd attempt."}}
 ]

@@ -13,14 +13,14 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Frankenstein · detekční agent",
-  description: "AI agent, který analytikům SOC staví, testuje a ověřuje detekční pravidla.",
+  title: "Frankenstein",
+  description: "An AI agent that builds, tests and validates detection rules for SOC analysts.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="cs" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="min-h-full">{children}</body>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+      <body className="h-full">{children}</body>
     </html>
   );
 }

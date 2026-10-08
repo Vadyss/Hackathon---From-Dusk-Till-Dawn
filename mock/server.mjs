@@ -43,7 +43,7 @@ const SEED_SKILLS = [
     name: "count_window",
     version: 1,
     kind: "aggregation",
-    description: "Počítá události v časovém okně pro každou skupinu.",
+    description: "Counts events within a time window for each group.",
     origin: "seed",
     status: "installed",
     created_by_run: null,
@@ -53,7 +53,7 @@ const SEED_SKILLS = [
     name: "ssh_parser",
     version: 1,
     kind: "parser",
-    description: "Převede řádky auth.log z OpenSSH na události.",
+    description: "Parses OpenSSH auth.log lines into events.",
     origin: "seed",
     status: "installed",
     created_by_run: null,
@@ -141,7 +141,7 @@ async function play(run, scenario) {
         emit(run, {
           type: "rule_rejected",
           phase: "done",
-          message: "Analytik pravidlo zamítl.",
+          message: "The analyst rejected the rule.",
           data: { reason: decision.reason },
         });
         return;
@@ -212,14 +212,14 @@ const server = createServer(async (req, res) => {
       try {
         body = await readJson(req);
       } catch {
-        return err(req, res, 400, "INVALID_REQUEST", "Tělo požadavku není platný JSON.");
+        return err(req, res, 400, "INVALID_REQUEST", "The request body is not valid JSON.");
       }
       const text = typeof body?.request === "string" ? body.request.trim() : "";
       if (text.length < 1 || text.length > 2000) {
-        return err(req, res, 400, "INVALID_REQUEST", "Požadavek musí mít 1 až 2000 znaků.");
+        return err(req, res, 400, "INVALID_REQUEST", "The request must be 1 to 2000 characters long.");
       }
       if (hasActiveRun()) {
-        return err(req, res, 409, "RUN_ALREADY_ACTIVE", "Předchozí běh ještě neskončil.");
+        return err(req, res, 409, "RUN_ALREADY_ACTIVE", "Another run is still in progress.");
       }
       const run_id = "run_" + randomBytes(6).toString("hex").slice(0, 8);
       const run = {
@@ -253,17 +253,17 @@ const server = createServer(async (req, res) => {
     if (m) {
       const [, runId, action] = m;
       const run = RUN_ID_RE.test(runId) ? runs.get(runId) : undefined;
-      if (!run) return err(req, res, 404, "RUN_NOT_FOUND", "Běh neexistuje.");
+      if (!run) return err(req, res, 404, "RUN_NOT_FOUND", "Run not found.");
 
       if (action === "events" && req.method === "GET") {
         const raw = url.searchParams.get("after_seq") ?? "0";
-        if (!/^\d+$/.test(raw)) return err(req, res, 400, "INVALID_REQUEST", "Neplatné after_seq.");
+        if (!/^\d+$/.test(raw)) return err(req, res, 400, "INVALID_REQUEST", "Invalid after_seq.");
         const after = Number(raw);
         return send(req, res, 200, { events: run.events.filter((e) => e.seq > after) });
       }
 
       if (action === "audio" && req.method === "GET") {
-        return err(req, res, 404, "AUDIO_NOT_FOUND", "Běh nemá hlasové shrnutí.");
+        return err(req, res, 404, "AUDIO_NOT_FOUND", "This run has no voice summary.");
       }
 
       if ((action === "approve" || action === "reject") && req.method === "POST") {
@@ -271,35 +271,35 @@ const server = createServer(async (req, res) => {
         try {
           body = await readJson(req);
         } catch {
-          return err(req, res, 400, "INVALID_REQUEST", "Tělo požadavku není platný JSON.");
+          return err(req, res, 400, "INVALID_REQUEST", "The request body is not valid JSON.");
         }
         if (action === "approve") {
           const c = body?.comment;
           if (c !== undefined && (typeof c !== "string" || c.length > 500)) {
-            return err(req, res, 400, "INVALID_REQUEST", "Komentář musí mít nejvýš 500 znaků.");
+            return err(req, res, 400, "INVALID_REQUEST", "The comment can be at most 500 characters long.");
           }
           if (run.status !== "awaiting_approval" || run.decision) {
-            return err(req, res, 409, "NOT_AWAITING_APPROVAL", "Běh nečeká na schválení.");
+            return err(req, res, 409, "NOT_AWAITING_APPROVAL", "This run is not waiting for approval.");
           }
           decideRun(run, { kind: "approve", comment: c ? c : null });
           return send(req, res, 200, { status: "approved" });
         }
         const r = typeof body?.reason === "string" ? body.reason.trim() : "";
         if (r.length < 1 || r.length > 500) {
-          return err(req, res, 400, "INVALID_REQUEST", "Důvod musí mít 1 až 500 znaků.");
+          return err(req, res, 400, "INVALID_REQUEST", "The reason must be 1 to 500 characters long.");
         }
         if (run.status !== "awaiting_approval" || run.decision) {
-          return err(req, res, 409, "NOT_AWAITING_APPROVAL", "Běh nečeká na schválení.");
+          return err(req, res, 409, "NOT_AWAITING_APPROVAL", "This run is not waiting for approval.");
         }
         decideRun(run, { kind: "reject", reason: r });
         return send(req, res, 200, { status: "rejected" });
       }
     }
 
-    return err(req, res, 404, "INVALID_REQUEST", "Neznámá cesta.");
+    return err(req, res, 404, "INVALID_REQUEST", "Unknown path.");
   } catch (e) {
     console.error(e);
-    return err(req, res, 500, "INTERNAL_ERROR", "Neočekávaná chyba mocku.");
+    return err(req, res, 500, "INTERNAL_ERROR", "Unexpected mock error.");
   }
 });
 
