@@ -1,8 +1,26 @@
 # Testing
 
+import os
+
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+CORS_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv(
+        "CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"
+    ).split(",")
+    if origin.strip()
+]
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ORIGINS,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
+    allow_credentials=False,
+)
 
 @app.get("/health")
 def deploy_testing():
@@ -57,21 +75,27 @@ async def api_error_handler(request: Request, exc: ApiError):
 
 @app.exception_handler(RequestValidationError)
 async def validation_error_handler(request: Request, exc: RequestValidationError):
-    return error_response(400, "INVALID_REQUEST", "Neplatné tělo nebo parametr požadavku.")
+    return error_response(400, "INVALID_REQUEST", "Invalid request body or parameter.")
 
 
 @app.exception_handler(StarletteHTTPException)
 async def http_error_handler(request: Request, exc: StarletteHTTPException):
     if exc.status_code == 404:
-        return error_response(404, "RUN_NOT_FOUND", "Požadovaný zdroj neexistuje.")
+        return error_response(404, "RUN_NOT_FOUND", "The requested resource does not exist.")
     if exc.status_code < 500:
-        return error_response(400, "INVALID_REQUEST", "Neplatný požadavek.")
-    return error_response(500, "INTERNAL_ERROR", "Neočekávaná chyba backendu.")
+        return error_response(400, "INVALID_REQUEST", "Invalid request.")
+    return error_response(500, "INTERNAL_ERROR", "Unexpected backend error.")
 
 
 @app.exception_handler(Exception)
 async def internal_error_handler(request: Request, exc: Exception):
-    return error_response(500, "INTERNAL_ERROR", "Neočekávaná chyba backendu.")
+    response = error_response(500, "INTERNAL_ERROR", "Unexpected backend error.")
+    # ServerErrorMiddleware calls this handler outside CORSMiddleware.
+    origin = request.headers.get("origin")
+    if origin is not None and origin in CORS_ORIGINS:
+        response.headers["Access-Control-Allow-Origin"] = origin
+    response.headers["Vary"] = "Origin"
+    return response
 
 
 # --- Stav v paměti ---
@@ -111,7 +135,7 @@ ws_clients: set[WebSocket] = set()
 
 def get_run(run_id: str) -> Run:
     if not RUN_ID_RE.match(run_id) or run_id not in runs:
-        raise ApiError(404, "RUN_NOT_FOUND", "Běh neexistuje.")
+        raise ApiError(404, "RUN_NOT_FOUND", "The run does not exist.")
     return runs[run_id]
 
 
@@ -166,7 +190,7 @@ async def emit(run: Run, type_: str, phase: str, message: str, data: Optional[di
 
 async def run_pipeline(run: Run) -> None:
     """Orchestrátor běhu. Sem patří plán, kovárna, pravidlo a ověření (kapitola 11)."""
-    await emit(run, "run_started", "intake", "Běh zahájen.", {"request": run.request})
+    await emit(run, "run_started", "intake", "Run started.", {"request": run.request})
 
 
 # --- Těla požadavků ---
@@ -189,10 +213,10 @@ class RejectBody(BaseModel):
 async def create_run(body: CreateRunBody):
     request_text = body.request.strip()
     if not 1 <= len(request_text) <= 2000:
-        raise ApiError(400, "INVALID_REQUEST", "Požadavek musí mít 1 až 2000 znaků.")
+        raise ApiError(400, "INVALID_REQUEST", "The request must contain 1 to 2000 characters.")
     async with runs_lock:
         if has_active_run():
-            raise ApiError(409, "RUN_ALREADY_ACTIVE", "Předchozí běh ještě neskončil.")
+            raise ApiError(409, "RUN_ALREADY_ACTIVE", "The previous run has not finished yet.")
         run_id = f"run_{secrets.token_hex(4)}"
         while run_id in runs:
             run_id = f"run_{secrets.token_hex(4)}"
@@ -220,10 +244,10 @@ async def get_events(run_id: str, after_seq: int = Query(0, ge=0)):
 async def approve_run(run_id: str, body: ApproveBody):
     run = get_run(run_id)
     if body.comment is not None and len(body.comment) > 500:
-        raise ApiError(400, "INVALID_REQUEST", "Komentář může mít nejvýš 500 znaků.")
+        raise ApiError(400, "INVALID_REQUEST", "The comment must contain at most 500 characters.")
     async with run.lock:
         if run.status != "awaiting_approval":
-            raise ApiError(409, "NOT_AWAITING_APPROVAL", "Běh nečeká na schválení.")
+            raise ApiError(409, "NOT_AWAITING_APPROVAL", "The run is not awaiting approval.")
         data = run.awaiting_data or {}
         events = []
         for skill in data.get("new_skills", []):
@@ -231,12 +255,12 @@ async def approve_run(run_id: str, body: ApproveBody):
             skills_registry[installed["name"]] = installed
             events.append(append_event(
                 run, "skill_installed", "done",
-                f"Dovednost {installed['name']} byla nainstalována do registru.",
+                f"Skill {installed['name']} was installed in the registry.",
                 {"skill": installed},
             ))
         rule_name = data.get("recipe", {}).get("name", "")
         events.append(append_event(
-            run, "rule_approved", "done", f"Pravidlo {rule_name} bylo schváleno.",
+            run, "rule_approved", "done", f"Rule {rule_name} was approved.",
             {"rule_name": rule_name, "comment": body.comment},
         ))
     for event in events:
@@ -248,11 +272,11 @@ async def approve_run(run_id: str, body: ApproveBody):
 async def reject_run(run_id: str, body: RejectBody):
     run = get_run(run_id)
     if not 1 <= len(body.reason) <= 500:
-        raise ApiError(400, "INVALID_REQUEST", "Důvod musí mít 1 až 500 znaků.")
+        raise ApiError(400, "INVALID_REQUEST", "The reason must contain 1 to 500 characters.")
     async with run.lock:
         if run.status != "awaiting_approval":
-            raise ApiError(409, "NOT_AWAITING_APPROVAL", "Běh nečeká na schválení.")
-        event = append_event(run, "rule_rejected", "done", "Pravidlo bylo zamítnuto.", {"reason": body.reason})
+            raise ApiError(409, "NOT_AWAITING_APPROVAL", "The run is not awaiting approval.")
+        event = append_event(run, "rule_rejected", "done", "Rule was rejected.", {"reason": body.reason})
     await broadcast(event)
     return {"status": "rejected"}
 
@@ -266,7 +290,7 @@ async def list_skills():
 async def get_audio(run_id: str):
     run = get_run(run_id)
     if run.audio is None:
-        raise ApiError(404, "AUDIO_NOT_FOUND", "Běh nemá hlasové shrnutí.")
+        raise ApiError(404, "AUDIO_NOT_FOUND", "The run has no voice summary.")
     return Response(content=run.audio, media_type="audio/mpeg")
 
 
@@ -274,6 +298,10 @@ async def get_audio(run_id: str):
 
 @app.websocket("/ws")
 async def websocket_events(ws: WebSocket):
+    origin = ws.headers.get("origin")
+    if origin is not None and origin not in CORS_ORIGINS:
+        await ws.close(code=1008)
+        return
     await ws.accept()
     ws_clients.add(ws)
     try:

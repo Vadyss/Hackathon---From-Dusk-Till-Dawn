@@ -31,9 +31,12 @@ jobs:
         run: docker compose up --build -d
         env:
           APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          NEXT_PUBLIC_API_BASE: ${{ vars.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8000' }}
+          CORS_ORIGINS: ${{ vars.CORS_ORIGINS || 'http://localhost:3000,http://127.0.0.1:3000' }}
+          BACKEND_BIND_HOST: ${{ vars.BACKEND_BIND_HOST || '127.0.0.1' }}
 
       - name: Backend health check
-        run: curl --fail --retry 10 --retry-delay 3 --retry-all-errors http://localhost:3000/api/health
+        run: curl --fail --retry 10 --retry-delay 3 --retry-all-errors http://127.0.0.1:8000/health
 
       - name: Frontend health check
         run: curl --fail --retry 10 --retry-delay 3 --retry-all-errors http://localhost:3000

@@ -20,7 +20,7 @@ Pokud jsi AI asistent a generuješ kód podle tohoto dokumentu, dodržuj tato pr
 3. Všechny texty z API vykresluj jako prostý text.
 4. Neznámé typy událostí a neznámá pole ignoruj. Nesmí způsobit chybu.
 5. Stav běhu odvozuj jen z událostí (kapitola 12), ne z odpovědí HTTP.
-6. Volej jen adresy pod `/api/` (nastavení pro vývoj je v kapitole 7.3).
+6. Volej přímo backend na adrese `NEXT_PUBLIC_API_BASE` a používej cesty z kapitoly 7.1 (nastavení je v kapitole 7.3).
 
 **Nikdy:**
 
@@ -48,15 +48,15 @@ Pokud jsi AI asistent a generuješ kód podle tohoto dokumentu, dodržuj tato pr
 ## 2. Architektura v kostce
 
 ```
-Prohlížeč ──► nginx (port 3000)
-               ├── /        → statický frontend (Next.js, export)
-               └── /api/... → backend (FastAPI): orchestrátor + vrátný
-                                 ├── sandbox (interní síť, bez internetu)
-                                 ├── LLM API
-                                 └── ElevenLabs
+Prohlížeč ──► nginx (port 3000): statický frontend (Next.js, export)
+          └─► backend (port 8000, HTTP /health, /runs, /skills a WebSocket /ws)
+                └── FastAPI: orchestrátor + vrátný
+                      ├── sandbox (interní síť, bez internetu)
+                      ├── LLM API
+                      └── ElevenLabs
 ```
 
-Frontend mluví **jen** s backendem přes `/api/`. Nikdy přímo se sandboxem, LLM ani ElevenLabs.
+Frontend v prohlížeči komunikuje přímo s backendem. nginx v Dockeru obsluhuje statické soubory. Backend zajišťuje komunikaci se sandboxem, LLM a ElevenLabs.
 
 ---
 
@@ -218,30 +218,30 @@ Frontend recept **nerozebírá**. Zobrazí jen pole `name` jako nadpis a celý r
 
 ## 7. HTTP API
 
-Cesty v tomto dokumentu jsou vždy z pohledu prohlížeče, tedy včetně `/api`.
+Cesty v tomto dokumentu jsou cesty skutečného FastAPI backendu bez prefixu `/api`. Prohlížeč k nim přidává základní adresu `NEXT_PUBLIC_API_BASE` podle kapitoly 7.3.
 
 ### 7.1 Přehled
 
 | Metoda | Cesta | Účel |
 |---|---|---|
-| GET | `/api/health` | stav backendu a verze kontraktu |
-| POST | `/api/runs` | nový požadavek analytika |
-| GET | `/api/runs` | seznam běhů |
-| GET | `/api/runs/{run_id}/events?after_seq=N` | události běhu |
-| POST | `/api/runs/{run_id}/approve` | schválení |
-| POST | `/api/runs/{run_id}/reject` | zamítnutí |
-| GET | `/api/skills` | dovednosti v registru |
-| GET | `/api/runs/{run_id}/audio` | hlasové shrnutí |
-| WebSocket | `/api/ws` | proud událostí (kapitola 8) |
+| GET | `/health` | stav backendu a verze kontraktu |
+| POST | `/runs` | nový požadavek analytika |
+| GET | `/runs` | seznam běhů |
+| GET | `/runs/{run_id}/events?after_seq=N` | události běhu |
+| POST | `/runs/{run_id}/approve` | schválení |
+| POST | `/runs/{run_id}/reject` | zamítnutí |
+| GET | `/skills` | dovednosti v registru |
+| GET | `/runs/{run_id}/audio` | hlasové shrnutí |
+| WebSocket | `/ws` | proud událostí (kapitola 8) |
 
 ### 7.2 Detail
 
-#### `GET /api/health`
+#### `GET /health`
 
 - 200: `{"status": "ok", "contract_version": 1}`
 - Frontend může při startu porovnat `contract_version` se svou verzí a při neshodě zobrazit varování.
 
-#### `POST /api/runs`
+#### `POST /runs`
 
 - Tělo: `{"request": "Chci zachytit password spraying na SSH."}`
 - `request`: `string`, 1 až 2000 znaků po oříznutí mezer na krajích, **[nedůvěryhodné]**
@@ -250,45 +250,48 @@ Cesty v tomto dokumentu jsou vždy z pohledu prohlížeče, tedy včetně `/api`
 - Chyby: 400 `INVALID_REQUEST` (chybí, je prázdný nebo příliš dlouhý), 409 `RUN_ALREADY_ACTIVE`
 - Kontrolu obsahu požadavku dělá vrátný až v běhu. Zamítnutí přijde jako událost `run_failed` s kódem `REQUEST_REJECTED`.
 
-#### `GET /api/runs`
+#### `GET /runs`
 
 - 200: `{"runs": [RunInfo, ...]}`, seřazené od nejnovějšího
 
-#### `GET /api/runs/{run_id}/events?after_seq=N`
+#### `GET /runs/{run_id}/events?after_seq=N`
 
 - `after_seq`: `int`, nepovinný, výchozí hodnota 0
 - 200: `{"events": [Event, ...]}`: všechny události běhu se `seq > N`, seřazené podle `seq`
 - Chyby: 400 `INVALID_REQUEST` (neplatné `after_seq`), 404 `RUN_NOT_FOUND` (neexistující nebo neplatné `run_id`)
 
-#### `POST /api/runs/{run_id}/approve`
+#### `POST /runs/{run_id}/approve`
 
 - Tělo: `{"comment": "Vypadá dobře."}` nebo `{}`; `comment` je nepovinný, 0 až 500 znaků
 - 200: `{"status": "approved"}`
 - Chyby: 400 `INVALID_REQUEST`, 404 `RUN_NOT_FOUND`, 409 `NOT_AWAITING_APPROVAL`
 
-#### `POST /api/runs/{run_id}/reject`
+#### `POST /runs/{run_id}/reject`
 
 - Tělo: `{"reason": "Příliš mnoho falešných poplachů."}`; `reason` je povinný, 1 až 500 znaků
 - 200: `{"status": "rejected"}`
 - Chyby: 400 `INVALID_REQUEST`, 404 `RUN_NOT_FOUND`, 409 `NOT_AWAITING_APPROVAL`
 
-#### `GET /api/skills`
+#### `GET /skills`
 
 - 200: `{"skills": [SkillInfo, ...]}`, jen dovednosti se stavem `installed`, seřazené podle `name`
 
-#### `GET /api/runs/{run_id}/audio`
+#### `GET /runs/{run_id}/audio`
 
 - 200: zvuk, `Content-Type: audio/mpeg`
 - Chyby: 404 `RUN_NOT_FOUND`, 404 `AUDIO_NOT_FOUND`
 - Hlas je volitelný. Frontend musí fungovat i bez něj.
 
-### 7.3 Adresa backendu při vývoji
+### 7.3 Přímá adresa backendu
 
-- V produkci volá frontend relativní adresy (`/api/...`) na stejném hostiteli.
-- Pro vývoj proti mocku na jiném portu frontend čte jedinou hodnotu `NEXT_PUBLIC_API_BASE`, například `http://localhost:8001`. Výchozí hodnota je prázdná, což znamená relativní adresy.
-- Adresa endpointu = `NEXT_PUBLIC_API_BASE` + `/api/...`.
-- Adresa WebSocketu: z `NEXT_PUBLIC_API_BASE` se `http` nahradí za `ws` (a `https` za `wss`). Když je hodnota prázdná, použije se aktuální stránka: `ws://` nebo `wss://` podle `window.location.protocol` a hostitel z `window.location.host`.
-- V produkčním Docker buildu nesmí být `NEXT_PUBLIC_API_BASE` nastavená.
+- Frontend při vývoji i v produkci používá `NEXT_PUBLIC_API_BASE`, výchozí hodnota je `http://127.0.0.1:8000`. Nastavuje se origin backendu bez prefixu `/api` a bez lomítka na konci.
+- Adresa HTTP endpointu je `NEXT_PUBLIC_API_BASE` + cesta z kapitoly 7.1, například `http://127.0.0.1:8000/runs`.
+- Jinou adresu lze při vývoji nastavit v `frontend/.env.development.local`; po změně je potřeba restartovat `npm run dev`.
+- Hodnota `NEXT_PUBLIC_API_BASE` je veřejná a při `next build` se zapíše do JavaScriptu pro prohlížeč. Změna v produkci vyžaduje nový build frontendu. Docker Compose ji předává jako build argument: `NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE:-http://127.0.0.1:8000}`.
+- Adresa musí být dostupná z prohlížeče uživatele. `localhost` a `127.0.0.1` jsou vhodné pro lokální použití; jméno Docker služby `backend` prohlížeč nezná. Compose publikuje backend přes `127.0.0.1:8000:8000`.
+- Adresa WebSocketu vznikne nahrazením `http` za `ws` nebo `https` za `wss` v základní adrese a přidáním `/ws`. Výchozí adresa je `ws://127.0.0.1:8000/ws`.
+- Pro frontend otevřený přes HTTPS musí být backend dostupný přes HTTPS; WebSocket pak používá WSS.
+- Backend povoluje originy frontendu pomocí `CORS_ORIGINS`, výchozí hodnota je `http://localhost:3000,http://127.0.0.1:3000`. HTTP CORS povoluje metody `GET` a `POST` a hlavičku `Content-Type`; preflight požadavky `OPTIONS` obsluhuje CORS middleware. WebSocket ověřuje hlavičku `Origin` proti stejnému seznamu. `CORS_ORIGINS` jsou adresy frontendu, nikoli backendu.
 
 ### 7.4 Formát chyby
 
@@ -313,7 +316,7 @@ Frontend zobrazí `message` uživateli jako prostý text.
 
 ## 8. WebSocket
 
-- Adresa: `/api/ws` (sestavení adresy viz kapitola 7.3).
+- Adresa: `/ws` (sestavení adresy viz kapitola 7.3).
 - Zprávy posílá jen backend. Frontend nic neposílá.
 - Jedna zpráva = jedna událost ve tvaru JSON (kapitola 9).
 - Backend posílá události všech běhů všem připojeným klientům.
@@ -515,13 +518,13 @@ Přijde hned po návrhu od LLM, ještě před kontrolou vrátného. Na časové 
 
 Volitelná. Může přijít kdykoli po `summary`, i po `awaiting_approval`, nebo vůbec.
 
-- `audio_url`: `string`, vždy `/api/runs/{run_id}/audio`
+- `audio_url`: `string`, vždy `/runs/{run_id}/audio`
 
 ```json
-{ "audio_url": "/api/runs/run_8f3a/audio" }
+{ "audio_url": "/runs/run_8f3a/audio" }
 ```
 
-Při vývoji s `NEXT_PUBLIC_API_BASE` se před `audio_url` přidá tato hodnota.
+Frontend načítá audio přímo z backendu: před cestu `/runs/{run_id}/audio` přidá `NEXT_PUBLIC_API_BASE` podle kapitoly 7.3.
 
 #### `awaiting_approval`
 
@@ -677,10 +680,10 @@ Ostatní události stav nemění.
 ### 12.2 Načtení stránky
 
 1. Otevři WebSocket. Příchozí události zatím ukládej do vyrovnávací paměti.
-2. Zavolej `GET /api/runs`.
-3. Pro každý běh zavolej `GET /api/runs/{run_id}/events?after_seq=0`.
+2. Zavolej `GET /runs`.
+3. Pro každý běh zavolej `GET /runs/{run_id}/events?after_seq=0`.
 4. Slij historii s vyrovnávací pamětí. Duplicity zahoď podle dvojice `run_id` + `seq`. Seřaď podle `seq`.
-5. Zavolej `GET /api/skills`.
+5. Zavolej `GET /skills`.
 
 Pořadí kroků 1 a 2 je důležité. WebSocket se otevírá první, aby se neztratila událost, která přijde během stahování historie.
 
@@ -702,7 +705,7 @@ Pořadí kroků 1 a 2 je důležité. WebSocket se otevírá první, aby se nezt
 - **Časová osa:** všechny události; zobrazuje `timestamp`, `phase` a `message`.
 - **Chat:** `run_started.request` a `summary.text`.
 - **Schválení:** poslední `awaiting_approval` běhu ve stavu `awaiting_approval`. Po kliknutí na „Schválit“ nebo „Zamítnout“ se tlačítka zablokují, dokud nepřijde koncová událost nebo chyba. Při chybě se znovu odblokují a zobrazí se `error.message`.
-- **Dovednosti:** výchozí seznam z `GET /api/skills`. Událost `skill_installed` dovednost přidá, `skill_reused` ji zvýrazní, `skill_candidate_ready` ji může ukázat jako kandidáta.
+- **Dovednosti:** výchozí seznam z `GET /skills`. Událost `skill_installed` dovednost přidá, `skill_reused` ji zvýrazní, `skill_candidate_ready` ji může ukázat jako kandidáta.
 - **Srovnání:** `summary.stats` dvou běhů, například posledních dvou dokončených.
 
 ### 12.6 Odpovědi HTTP
@@ -711,47 +714,21 @@ Pořadí kroků 1 a 2 je důležité. WebSocket se otevírá první, aby se nezt
 
 ---
 
-## 13. Mock backend
+## 13. Aktuální stav backendu
 
-Slouží k vývoji frontendu bez skutečného backendu a jako záložní demo.
+Frontend se připojuje ke skutečnému FastAPI backendu v `backend/orchestrator/main.py`. Návod ke spuštění je v `frontend/README.md`.
 
-### 13.1 Požadavky
+Současná implementace `run_pipeline` vytváří pouze událost `run_started`. Plánování, tvorba dovedností, ověření pravidel, shrnutí a hlas zatím nejsou implementované. Běh proto zůstává ve stavu `running` a další požadavek vrátí `RUN_ALREADY_ACTIVE`; pro nový běh je do dokončení pipeline potřeba restartovat backend.
 
-- Implementuje stejné cesty jako backend: všechny z kapitoly 7.1 včetně `/api/ws`.
-- `GET /api/runs/{run_id}/audio` smí vždy vracet 404 `AUDIO_NOT_FOUND`.
-- Povoluje CORS pro adresu vývojového serveru frontendu.
-- Dodržuje stejná pravidla jako backend: limity, chyby, 409 při aktivním běhu, 409 při opakovaném schválení.
-
-### 13.2 Scénáře
-
-- Každý scénář je soubor `mock/scenarios/<název>.json` se seznamem událostí.
-- V souboru stačí `type`, `phase`, `message`, `data`. Pole `run_id`, `seq` a `timestamp` doplní mock. Pokud je soubor obsahuje, mock je přepíše.
-- Mock vybere scénář podle textu požadavku (bez ohledu na velikost písmen):
-  - obsahuje `spray` → scénář A,
-  - obsahuje `distrib` → scénář B,
-  - obsahuje `inject` → scénář C,
-  - obsahuje `fail` → scénář D,
-  - jinak scénář A.
-
-### 13.3 Přehrávání
-
-1. Mezi událostmi náhodná prodleva 300 až 1500 ms.
-2. Před první událostí fáze `done` mock čeká na schválení nebo zamítnutí.
-3. Po `approve`: pošle zbytek scénáře (`skill_installed` a `rule_approved`; `comment` doplní z těla požadavku).
-4. Po `reject`: zbytek scénáře zahodí a pošle `rule_rejected` s `reason` z těla požadavku.
-5. `GET /api/skills` začíná výchozími dovednostmi `ssh_parser` a `count_window`. Událost `skill_installed` přidá dovednost do seznamu.
-
-### 13.4 Záložní demo
-
-Výstup `GET /api/runs/{run_id}/events` ze skutečného běhu se uloží jako soubor scénáře a mock ho přehraje stejně jako ostatní.
+Katalog událostí a následující sekvence popisují cílové chování kontraktu. Připojení ke skutečnému backendu samo o sobě tuto pipeline nedoplňuje.
 
 ---
 
 ## 14. Typické sekvence
 
-Výchozí dovednosti jsou `ssh_parser` a `count_window`. Pro obyčejný brute force agent nic nového nestaví.
+Tyto příklady popisují cílové chování po implementaci pipeline. Počítají s výchozími dovednostmi `ssh_parser` a `count_window`; pro obyčejný brute force agent nic nového nestaví.
 
-### Scénář A: password spraying, agent staví novou dovednost
+### Password spraying: agent staví novou dovednost
 
 1. `run_started`
 2. `plan_ready`
@@ -773,7 +750,7 @@ Výchozí dovednosti jsou `ssh_parser` a `count_window`. Pro obyčejný brute fo
 18. `skill_installed` (distinct_count_window)
 19. `rule_approved`
 
-### Scénář B: distribuovaný brute force, agent dovednost znovu použije
+### Distribuovaný brute force: agent dovednost znovu použije
 
 Jeden uživatel, mnoho IP adres. Stejná dovednost `distinct_count_window`, jiné parametry.
 
@@ -790,7 +767,7 @@ Jeden uživatel, mnoho IP adres. Stejná dovednost `distinct_count_window`, jin�
 11. *čeká na schválení*
 12. `rule_approved`
 
-### Scénář C: brute force s prompt injection v logu
+### Brute force s prompt injection v logu
 
 1. `run_started`
 2. `plan_ready`
@@ -806,7 +783,7 @@ Jeden uživatel, mnoho IP adres. Stejná dovednost `distinct_count_window`, jin�
 12. *čeká na schválení*
 13. `rule_approved`
 
-### Scénář D: selhání kovárny
+### Selhání kovárny
 
 1. `run_started`
 2. `plan_ready`
@@ -831,37 +808,40 @@ Jeden uživatel, mnoho IP adres. Stejná dovednost `distinct_count_window`, jin�
 5. **Texty od LLM** zkrať na limity z kapitoly 4 dřív, než se dostanou do události.
 6. **`message`** skládej ze šablon v kódu, ne z výstupu LLM.
 7. **Pomalý klient WebSocketu** nesmí zdržet běh. Odesílání s časovým limitem, nefunkčního klienta odpoj.
-8. **`POST /api/runs`** vrací 202 hned. Běh pokračuje na pozadí.
+8. **`POST /runs`** vrací 202 hned. Běh pokračuje na pozadí.
 9. **Návrh pro `RECIPE_EXCEPTION`:** výjimkou je každý filtr, který vylučuje konkrétní identitu, například `neq` nebo `not_in` na polích `src_ip`, `user` nebo `host`. Přesné pravidlo určuje politika vrátného.
 
 ---
 
-## 16. Infrastruktura (nginx)
+## 16. Infrastruktura
 
-- Pro `/api/ws` je potřeba vlastní `location`, protože WebSocket vyžaduje předání hlaviček `Upgrade` a `Connection` a `proxy_http_version 1.1`.
-- nginx ve výchozím stavu zavře spojení bez provozu po 60 s (`proxy_read_timeout`). Pro `/api/ws` nastav delší limit, například 3600 s. Výpadky navíc řeší automatické připojení z kapitoly 12.4.
-- `location /api/ws` musí s prefixem `/api` zacházet stejně jako stávající `location /api/`: buď ho oba odřezávají (`proxy_pass` s lomítkem na konci), nebo oba ponechávají. Podle toho mají být definované cesty ve FastAPI.
+- nginx v Dockeru obsluhuje pouze statický export Next.js na hostitelském portu 3000. HTTP API i WebSocket prohlížeč otevírá přímo na backendu.
+- Backend je v Docker Compose publikovaný na `127.0.0.1:8000:8000`. Základní adresa frontendu se nastavuje při jeho buildu pomocí `NEXT_PUBLIC_API_BASE`.
+- Pro přístup z jiného zařízení lze publikovat port na všech rozhraních pomocí `BACKEND_BIND_HOST=0.0.0.0`; zároveň je potřeba veřejná `NEXT_PUBLIC_API_BASE` a origin frontendu v `CORS_ORIGINS`. CI předává tyto hodnoty z GitHub repository variables stejného jména.
+- Backend při startu načte seznam `CORS_ORIGINS`; po jeho změně je potřeba backend restartovat. HTTP CORS a kontrola WebSocket `Origin` používají stejný seznam z kapitoly 7.3.
 
 ---
 
 ## 17. Změny kontraktu
 
 - Každá změna je PR do `docs/kontrakt.md` a schvalují ji oba.
-- Po změně zvýší autor PR `contract_version` (v hlavičce dokumentu i v `GET /api/health`), pokud jde o nekompatibilní změnu.
-- Po změně kolega upraví mock a frontend, Adam backend.
+- Po změně zvýší autor PR `contract_version` (v hlavičce dokumentu i v `GET /health`), pokud jde o nekompatibilní změnu.
+- Verze 1 se při přechodu na přímé připojení ponechává: skutečné cesty FastAPI i formáty odpovědí a událostí zůstávají stejné. Prefix `/api` byl součástí konfigurace předchozí proxy; volba originu a odstranění této proxy mění způsob nasazení a konfiguraci klienta, nikoli verzi backendového protokolu. Nová verze je potřeba při nekompatibilní změně skutečného API.
+- Po změně kolega upraví frontend, Adam backend.
 - Přidat novou událost nebo nové pole je bezpečné. Přejmenovat nebo odebrat cokoli bezpečné není.
 
 ---
 
 ## 18. Kontrolní seznam před integrací
 
-### Frontend s mockem
+### Frontend se skutečným backendem
 
-- [ ] Všechny čtyři scénáře projdou bez chyby v konzoli prohlížeče.
+- [ ] `GET /health` přímo na backendu vrátí stav a verzi kontraktu.
+- [ ] Odeslaný požadavek založí skutečný běh a `run_started` se zobrazí v časové ose přes `/ws`.
 - [ ] Testovací řetězce z kapitoly 5.3 se zobrazí doslova.
 - [ ] Událost neznámého typu stránku nerozbije.
 - [ ] Po obnovení stránky se zobrazí stejný stav jako před ní.
-- [ ] Po restartu mocku se WebSocket sám připojí a stav se obnoví.
+- [ ] Po restartu backendu se WebSocket sám připojí a běhy, které už backend nezná, zmizí z pohledu.
 - [ ] Dvojklik na „Schválit“ pošle jen jeden požadavek. Chyba 409 se zobrazí srozumitelně.
 - [ ] Nový požadavek během aktivního běhu zobrazí chybu `RUN_ALREADY_ACTIVE`.
 - [ ] Metriky s `null` se zobrazí jako „—“.
@@ -874,8 +854,11 @@ Jeden uživatel, mnoho IP adres. Stejná dovednost `distinct_count_window`, jin�
 - [ ] Každá událost je v `GET .../events` dřív, než odejde přes WebSocket.
 - [ ] Souběžné `approve` a `reject` skončí jedním 200 a jedním 409.
 - [ ] Texty od LLM jsou zkrácené na limity.
-- [ ] WebSocket přes nginx vydrží několik minut bez provozu.
+- [ ] Přímý WebSocket `/ws` se připojí z povoleného originu a vydrží několik minut bez provozu.
+- [ ] HTTP preflight povolí `GET`/`POST` a `Content-Type` pro originy z `CORS_ORIGINS`; nepovolený WebSocket origin backend odmítne.
 
 ### Společně
 
-- [ ] Skutečný běh projde frontendem stejně jako scénář z mocku.
+- [ ] Prohlížeč používá HTTP i WebSocket přímo na adrese backendu při vývoji i v Dockeru.
+- [ ] Změna `NEXT_PUBLIC_API_BASE` se projeví po restartu vývojového serveru nebo po novém produkčním buildu.
+- [ ] Po dokončení pipeline skutečný běh projde od `run_started` po koncovou událost, včetně schválení nebo zamítnutí. Tento bod zatím blokuje stav popsaný v kapitole 13.

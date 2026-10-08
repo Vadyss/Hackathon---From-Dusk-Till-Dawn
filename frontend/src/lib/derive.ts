@@ -71,7 +71,7 @@ export function sortRuns(runs: Record<string, RunState>): RunState[] {
   return Object.values(runs).sort((a, b) => runCreatedAt(b) - runCreatedAt(a));
 }
 
-// Skills: base list from GET /api/skills plus every skill_installed event.
+// Skills: base list from GET /skills plus every skill_installed event.
 export function installedSkills(base: SkillInfo[], runs: Record<string, RunState>): SkillInfo[] {
   const byName = new Map<string, SkillInfo>();
   for (const s of base) if (s && typeof s.name === "string") byName.set(s.name, s);
