@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, Protocol
+import unicodedata
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -29,7 +30,7 @@ class SkillInfo(JsonModel):
     @field_validator("description", mode="before")
     @classmethod
     def clean_description(cls, value: str) -> str:
-        value = "".join(c for c in value if c in "\n\t" or (ord(c) >= 32 and ord(c) != 127))
+        value = "".join(c for c in value if c in "\n\t" or not unicodedata.category(c).startswith("C"))
         return value if len(value) <= 300 else value[:299] + "…"
 
 
@@ -60,7 +61,7 @@ class Violation(JsonModel):
     @field_validator("detail", mode="before")
     @classmethod
     def clip_detail(cls, value: str) -> str:
-        value = "".join(c for c in value if c in "\n\t" or (ord(c) >= 32 and ord(c) != 127))
+        value = "".join(c for c in value if c in "\n\t" or not unicodedata.category(c).startswith("C"))
         return value if len(value) <= 200 else value[:199] + "…"
 
 

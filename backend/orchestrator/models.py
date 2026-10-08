@@ -214,10 +214,29 @@ class EventEnvelope(ContractModel):
 class CreateRunBody(BaseModel):
     request: StrictStr
 
+    @field_validator("request")
+    @classmethod
+    def valid_unicode(cls, value: str) -> str:
+        try:
+            value.encode("utf-8")
+        except UnicodeEncodeError:
+            raise ValueError("Požadavek obsahuje neplatný Unicode.") from None
+        return value
+
 
 class ApproveBody(BaseModel):
     comment: StrictStr | None = Field(default=None, max_length=500)
 
+    @field_validator("comment")
+    @classmethod
+    def valid_unicode(cls, value: str | None) -> str | None:
+        return CreateRunBody.valid_unicode(value) if value is not None else None
+
 
 class RejectBody(BaseModel):
     reason: StrictStr
+
+    @field_validator("reason")
+    @classmethod
+    def valid_unicode(cls, value: str) -> str:
+        return CreateRunBody.valid_unicode(value)

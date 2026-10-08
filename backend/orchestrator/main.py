@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from dataclasses import replace
 
 from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -33,16 +34,26 @@ def create_app(*, settings=None, gatekeeper=None, sandbox=None, roles=None, pipe
             app.state.gatekeeper = gatekeeper or Gatekeeper(config.gatekeeper_config(), sandbox_client)
         else:
             app.state.gatekeeper = gatekeeper
+        role_config = replace(config, llm_max_calls_per_run=min(config.llm_max_calls_per_run,
+                              getattr(app.state.gatekeeper, "max_llm_calls", config.llm_max_calls_per_run)))
         if roles is None:
             from orchestrator.planner import make_roles
 
-            app.state.roles = make_roles(config)
+            app.state.roles = make_roles(role_config)
         else:
             app.state.roles = roles
-        app.state.voice = voice
+        if voice is None:
+            from orchestrator.voice import VoiceService
+
+            app.state.voice = VoiceService(config, app.state.emitter)
+        else:
+            app.state.voice = voice
         logging.basicConfig(level=getattr(logging, config.log_level.upper(), logging.INFO))
         try:
-            available = await sandbox_client.health()
+            try:
+                available = await sandbox_client.health()
+            except Exception:
+                available = False
             if not available:
                 logging.getLogger(__name__).warning("Sandbox není dostupný; běh skončí SANDBOX_ERROR.")
             yield
@@ -50,6 +61,8 @@ def create_app(*, settings=None, gatekeeper=None, sandbox=None, roles=None, pipe
             await app.state.store.close()
             await app.state.hub.close()
             await sandbox_client.close()
+            if app.state.voice:
+                await app.state.voice.close()
             close_roles = getattr(app.state.roles, "close", None)
             if close_roles:
                 await close_roles()

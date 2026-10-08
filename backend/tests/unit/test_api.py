@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import pytest
 from fastapi.testclient import TestClient
 
@@ -29,9 +30,10 @@ def test_dual_mount_health_and_lists(stub_client, prefix):
 
 
 @pytest.mark.parametrize("body", [{}, [], None, {"request": None}, {"request": 7}, {"request": True},
-                                   {"request": ""}, {"request": "  "}, {"request": "A" * 2001}])
+                                   {"request": ""}, {"request": "  "}, {"request": "A" * 2001}, {"request": "\ud800"}])
 def test_invalid_run_bodies_never_422(stub_client, body):
-    assert_error(stub_client.post("/api/runs", json=body), 400, "INVALID_REQUEST")
+    assert_error(stub_client.post("/api/runs", content=json.dumps(body),
+                                 headers={"Content-Type": "application/json"}), 400, "INVALID_REQUEST")
 
 
 def test_bad_json_and_unknown_routes(stub_client):
