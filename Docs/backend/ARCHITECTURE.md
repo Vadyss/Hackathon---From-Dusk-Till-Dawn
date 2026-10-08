@@ -12,6 +12,8 @@ flowchart LR
   GK --> D[Pevná ladicí a ověřovací data]
   GK --> S[Sandbox: nový omezený proces pro každou úlohu]
   GK --> R[Trvalý registr, pravidla, audit, poučení]
+  GK --> E[Volitelný nezávislý Examiner]
+  E --> LLM
   API --> H[Schválení nebo zamítnutí analytikem]
   H --> GK
 ```
@@ -22,6 +24,7 @@ flowchart LR
 - Vrátný nemá LLM závislosti. Načte ověřené datové sady, provede AST a schématické kontroly, vyhodnotí filtr a spočítá incidenty, TP/FP/FN a hranice úspěchu. Sandbox volá přes HTTP.
 - Kandidát musí projít vlastními i nezávislými skrytými testy. Kód, manifest a testy mají otisky. Povýšení kontroluje stejný recept a stejný kód, které prošly ověřením; návrhy jsou před asynchronními operacemi kopírovány.
 - Sandbox nemá internet, tajemství, data, registr ani Docker socket. Je read-only s tmpfs, neprivilegovaným uživatelem, omezenými capabilities, pamětí, CPU a počtem procesů. Každá úloha má vlastní adresář, podproces a limity prostředků; runner hlídá importy a I/O.
+- Examiner se zapíná příznakem `EXAMINER_ENABLED`. Pouze `main.py` ho předává vrátnému jako funkci. Dostává jen popis útoku a formátu logu. Vrátný staticky ověří generátor, provede jej v sandboxu s oddělenými soukromými seedy, zkontroluje štítky a parser a přidá pevný běžný provoz. Data patří jen danému běhu a nedostanou se k plánovači ani autorovi pravidla.
 
 ## Učení a opakování
 

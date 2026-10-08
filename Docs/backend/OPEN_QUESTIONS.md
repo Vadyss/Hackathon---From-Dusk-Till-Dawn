@@ -6,3 +6,6 @@
 4. Existující stack na 3000 se považuje za uživatelský; integrační container smoke bude izolovaný a nepoužije jeho data ani kontejnery.
 5. Kontrakt příkladu Metrics má precision zaokrouhlené na dvě místa; skutečné hodnoty specifikace zaokrouhluje na tři. Příklad není omezení přesnosti.
 6. Existující adresář `Docs/` se zachovává i pro backend dokumentaci. macOS názvy nerozlišuje, Linux ano; odkazy používají skutečnou velikost písmen `Docs/backend`.
+7. P3 samoopravy jsou podle kapitoly 19 volitelné a zůstávají odložené. Examiner je implementován samostatně a zůstává výchozí vypnutý. Oprava existující dovednosti vyžaduje bezpečnou transakční náhradu celé verze; nepřidává se jen příznak bez úplného opravného toku.
+8. Skutečné placené LLM a ElevenLabs nevoláme. Specifikace M4 počítá s ručním ověřením vlastníkem pomocí `llm_smoke.py`; transporty a chyby jsou otestované lokálně s falešnými odpověďmi.
+9. Během závěrečného ověřování přestal Docker VM navazovat vnější TLS spojení. Závislosti se stáhly přes host a izolované validační image se sestavily z dočasného offline kontextu. Standardní Dockerfiles zůstávají použitelné při dostupné síti; uživatelský Docker stack se nerestartoval.
