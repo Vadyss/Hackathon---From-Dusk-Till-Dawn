@@ -1,0 +1,32 @@
+version: 1
+authority:
+  note: "Neměnná autorita vrátného. Běžící aplikace tento soubor nikdy nezapisuje."
+attempts: {plan: 3, forge_per_skill: 3, rule: 3}
+thresholds: {min_precision: 0.9, min_recall: 0.9}
+datasets: {min_instances_per_attack_type: 6, sample_lines: 20}
+skills:
+  allowed_kinds: [parser, aggregation, enrichment]
+  max_missing_per_plan: 2
+  min_llm_tests: 4
+  max_code_bytes: 20000
+  max_test_bytes: 20000
+  max_ast_nodes: 6000
+  max_string_literal: 2000
+  allowed_imports: [re, datetime, collections, itertools, functools, math, statistics, ipaddress, json, typing, dataclasses, bisect, heapq, string, operator, enum, decimal, fractions, hashlib, base64, binascii]
+  forbidden_calls: [eval, exec, compile, open, __import__, input, breakpoint, globals, locals, vars, getattr, setattr, delattr, dir, help, exit, quit, memoryview, print]
+  forbid_dunder_access: true
+  permissions: {network: deny, filesystem: deny, subprocess: deny}
+  network_allowed_domains: []
+  forbidden_param_patterns: [exclude, ignore, whitelist, allowlist, skip, bypass]
+sandbox: {test_timeout_s: 10, run_timeout_s: 15, max_input_bytes: 5000000, max_output_bytes: 10000000}
+recipe:
+  filter_ops: [eq, neq, in, not_in, gt, gte, lt, lte, contains, startswith]
+  condition_ops: [gt, gte, lt, lte, eq]
+  negation_ops: [neq, not_in]
+  identity_fields: [src_ip, dst_ip, user, username, host, src_host]
+  ip_identity_fields: [src_ip, dst_ip]
+  max_filter_conditions: 10
+  max_in_values: 50
+  window_s: {min: 10, max: 86400}
+  max_recipe_chars: 4096
+llm: {max_calls_per_run: 25}

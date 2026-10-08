@@ -1,7 +1,7 @@
-from fastapi import FastAPI
+"""Compatibility entrypoint for existing ``uvicorn main:app`` commands."""
+from __future__ import annotations
 
-app = FastAPI()
-
-@app.get("/health")
-def testing():
-    return {"status": "ok"}
+try:
+    from .server import app
+except ImportError:  # Docker runs this module from /app.
+    from server import app

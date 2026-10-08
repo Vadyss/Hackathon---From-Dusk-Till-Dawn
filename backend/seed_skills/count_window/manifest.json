@@ -1,0 +1,12 @@
+{
+  "name": "count_window", "version": 1, "kind": "aggregation",
+  "description": "Počítá události v posuvném časovém okně pro každou skupinu.",
+  "entrypoint": "run", "inputs": "events", "outputs": ["count"],
+  "params": {
+    "group_by": {"type": "string|string[]", "required": true},
+    "window_s": {"type": "int", "required": true, "min": 10, "max": 86400},
+    "ts_field": {"type": "string", "required": false, "default": "ts"}
+  },
+  "imports": ["collections"],
+  "permissions": {"network": false, "filesystem": false, "subprocess": false}
+}

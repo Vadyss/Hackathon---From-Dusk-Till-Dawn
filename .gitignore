@@ -35,4 +35,12 @@ Thumbs.db
 
 # --- Logy a dočasné soubory ---
 *.log
+!/backend/datasets/**/*.log
 tmp/
+
+# --- Backend runtime artifacts (never commit registry or generated audio) ---
+/data/
+/backend/data/
+/backend/.data/
+*.mp3
+*.wav

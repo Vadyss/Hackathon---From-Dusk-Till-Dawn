@@ -1,0 +1,9 @@
+{
+  "name": "ssh_parser", "version": 1, "kind": "parser",
+  "description": "Převede řádky auth.log z OpenSSH (RFC 3339) na události.",
+  "entrypoint": "run", "inputs": "lines",
+  "outputs": ["host", "program", "pid", "event", "outcome", "user", "invalid_user", "src_ip", "src_port", "method"],
+  "params": {}, "imports": ["re", "datetime"],
+  "permissions": {"network": false, "filesystem": false, "subprocess": false},
+  "log_sources": ["ssh"]
+}
