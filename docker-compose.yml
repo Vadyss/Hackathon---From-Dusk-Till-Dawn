@@ -21,7 +21,7 @@ services:
       - sandbox_net
     restart: unless-stopped
     environment:
-      - LLM_API_KEY=${LLM_API_KEY}
+      - APIFY_TOKEN=${APIFY_TOKEN}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
 
   sandbox:
