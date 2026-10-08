@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import math
+import json
 from copy import deepcopy
 from .names import clip, valid_field, valid_name, violations_unique
 from .policy import Policy
@@ -36,6 +37,10 @@ def validate_spec(spec: object, role: str, policy: Policy) -> list[Violation]:
         errors.append(Violation(code=code, detail=detail))
     if not isinstance(spec, dict):
         return [Violation(code="INVALID_SPEC", detail="Chybí objekt specifikace dovednosti.")]
+    try:
+        json.dumps(spec, ensure_ascii=False, allow_nan=False).encode("utf-8")
+    except (ValueError, TypeError, RecursionError):
+        return [Violation(code="INVALID_SPEC", detail="Specifikace nemá platný formát JSON UTF-8.")]
     outputs = spec.get("outputs")
     if not isinstance(outputs, list) or not outputs or not all(valid_field(v) for v in outputs) or len(set(outputs)) != len(outputs):
         add("INVALID_SPEC", "Specifikace musí mít neprázdné jedinečné výstupy.")
@@ -59,6 +64,10 @@ def validate_manifest(raw: object, spec: MissingSkill | None, policy: Policy) ->
         errors.append(Violation(code=code, detail=detail))
     if not isinstance(raw, dict):
         return None, [Violation(code="INVALID_MANIFEST", detail="Manifest musí být objekt.")]
+    try:
+        json.dumps(raw, ensure_ascii=False, allow_nan=False).encode("utf-8")
+    except (ValueError, TypeError, RecursionError):
+        return None, [Violation(code="INVALID_MANIFEST", detail="Manifest nemá platný formát JSON UTF-8.")]
     required = {"name", "version", "kind", "description", "entrypoint", "inputs", "outputs", "params", "imports", "permissions"}
     if not required <= raw.keys() or raw.keys() - required - {"log_sources"}:
         add("INVALID_MANIFEST", "Manifest má chybějící nebo neznámá pole.")

@@ -7,17 +7,18 @@ from copy import deepcopy
 from .audit import AuditLog
 from .datasets import DatasetStore
 from .evaluator import evaluate_recipe
+from .examiner_data import prepare_datasets
 from .hidden_tests import run_hidden_tests
 from .lessons import Lessons
 from .manifest import validate_manifest
-from .names import require_run_id, violations_unique
+from .names import require_run_id, violations_unique, valid_name, clip
 from .plan_check import check_plan
 from .policy import load_policy
 from .recipe import check_recipe, display_recipe
 from .registry import IntegrityError, Registry, recipe_sha256
 from .sandbox_client import SandboxClient
 from .static_analysis import analyze_code
-from .types import GatekeeperConfig, ParseFailure, SkillVerdict, Violation
+from .types import GatekeeperConfig, ParseFailure, PlanVerdict, SkillVerdict, Violation
 
 
 class Gatekeeper:
@@ -37,6 +38,9 @@ class Gatekeeper:
         self._validation_started = set()
         self._last_recipes = {}
         self._skill_attempts = {}
+        self._custom_data = {}
+        self._custom_attacks = {}
+        self._examiner_started = set()
         self.examiner = examiner
         self.examiner_enabled = cfg.examiner_enabled
         self.audit.append("startup", detail={"policy_sha256": self.policy.sha256,
@@ -47,9 +51,14 @@ class Gatekeeper:
     def max_llm_calls(self):
         return self.policy.llm.max_calls_per_run
 
-    def catalog(self):
-        return {**self.datasets.catalog(), "skills": self.registry.manifests(),
-                "policy": self.policy.digest_for_llm()}
+    def catalog(self, run_id=None):
+        data = self.datasets.catalog()
+        if run_id in self._custom_attacks:
+            custom = self._custom_attacks[run_id]
+            data["attack_types"][custom["slug"]] = {"log_source": "ssh", "description": custom["description"]}
+        return {**data, "skills": self.registry.manifests(run_id),
+                "policy": self.policy.digest_for_llm(),
+                "examiner_enabled": self.examiner_enabled and self.examiner is not None}
 
     def log_sample(self, source):
         return self.datasets.sample(source)
@@ -71,7 +80,9 @@ class Gatekeeper:
 
     def check_plan(self, run_id, raw):
         require_run_id(run_id)
-        verdict = check_plan(raw, self.catalog(), self.policy)
+        if isinstance(raw, dict) and raw.get("attack_type") == "custom":
+            return PlanVerdict(request_rejected=True, reason="Pro tento typ útoku nejprve musí vzniknout nezávislá testovací data.")
+        verdict = check_plan(raw, self.catalog(run_id), self.policy)
         if verdict.ok:
             self._plans[run_id] = deepcopy(verdict.plan)
         elif verdict.request_rejected:
@@ -79,6 +90,44 @@ class Gatekeeper:
         else:
             self.audit.append("plan_rejected", run_id, {"violations": [v.model_dump() for v in verdict.violations]})
         return verdict
+
+    async def prepare_custom_plan(self, run_id, raw):
+        require_run_id(run_id)
+        raw = deepcopy(raw)
+        reason = "Pro tento typ útoku se nepodařilo připravit ověřitelná testovací data."
+        try:
+            custom = raw.get("custom_attack") if isinstance(raw, dict) else None
+            if (not self.examiner_enabled or self.examiner is None or run_id in self._examiner_started
+                    or raw.get("intent") != "detection_rule" or raw.get("log_source") != "ssh"
+                    or not isinstance(custom, dict) or set(custom) != {"slug", "description"}
+                    or not valid_name(custom.get("slug")) or custom["slug"] in self.datasets.catalog()["attack_types"]
+                    or not isinstance(custom.get("description"), str) or not custom["description"].strip()
+                    or len(custom["description"]) > 300):
+                raise ValueError(reason)
+            custom["description"].encode("utf-8")
+            description = clip(custom["description"], 300).strip()
+            if not description:
+                raise ValueError(reason)
+            self._examiner_started.add(run_id)
+            fmt = self.datasets.catalog()["log_sources"]["ssh"]["description"]
+            generated = await self.examiner(description, fmt)
+            if not isinstance(generated, dict) or set(generated) != {"code"} or not isinstance(generated["code"], str):
+                raise ValueError(reason)
+            baseline = {name: self.datasets.load("ssh", name) for name in ("tuning", "validation")}
+            prepared = await prepare_datasets(run_id, custom["slug"], generated["code"], baseline,
+                                             self.sandbox, self.policy, lambda name: self.registry.read_skill(None, name))
+            digests = self.registry.save_examiner_data(run_id, prepared)
+            self._custom_data[run_id] = prepared
+            self._custom_attacks[run_id] = {"slug": custom["slug"], "description": description}
+            self.audit.append("examiner_dataset", run_id, {"attack_type": custom["slug"], "digests": digests,
+                              "counts": {name: len(dataset.labels["instances"]) for name, dataset in prepared.items()}})
+            raw["attack_type"] = custom["slug"]
+            return self.check_plan(run_id, raw)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            self.audit.append("request_rejected", run_id, {"reason": reason})
+            return PlanVerdict(request_rejected=True, reason=reason)
 
     async def submit_skill(self, run_id, spec, draft):
         spec, draft = deepcopy(spec), deepcopy(draft)
@@ -91,6 +140,8 @@ class Gatekeeper:
         if self._skill_attempts[key] > self.policy.attempts.forge_per_skill:
             raise IntegrityError("Překročen počet pokusů kovárny.")
         violations = []
+        if spec.name == "data":
+            return SkillVerdict(kind="policy_rejected", violations=[Violation(code="INVALID_NAME", detail="Název data je vyhrazený interním testovacím datům.")])
         if (not isinstance(draft, dict) or not isinstance(draft.get("code"), str)
                 or not isinstance(draft.get("tests"), str) or not isinstance(draft.get("manifest"), dict)):
             violations = [Violation(code="INVALID_OUTPUT", detail="Kovárna musí vrátit manifest, kód a testy.")]
@@ -163,7 +214,7 @@ class Gatekeeper:
         if self._checked.get(run_id) != recipe_sha256(recipe):
             raise IntegrityError("Recept neprošel kontrolou vrátného.")
         plan = self._plans[run_id]
-        data = self.datasets.load(plan.log_source, "tuning")
+        data = self._dataset(run_id, plan.log_source, "tuning")
         digests = self._skill_digests(run_id, recipe)
         result = await evaluate_recipe(recipe, data.lines, data.labels, lambda name: self.registry.read_skill(run_id, name),
                                        self.sandbox, self.policy, feedback=True, audit=self.audit, run_id=run_id)
@@ -187,7 +238,7 @@ class Gatekeeper:
             raise IntegrityError("Dovednost se od ladění změnila.")
         self._validation_started.add(run_id)
         plan = self._plans[run_id]
-        data = self.datasets.load(plan.log_source, "validation")
+        data = self._dataset(run_id, plan.log_source, "validation")
         result = await evaluate_recipe(recipe, data.lines, data.labels, lambda name: self.registry.read_skill(run_id, name),
                                        self.sandbox, self.policy, audit=self.audit, run_id=run_id)
         if digests != self._skill_digests(run_id, recipe):
@@ -227,10 +278,18 @@ class Gatekeeper:
             self._lessons.record(run_id, plan.attack_type if plan else "unknown", reason_code,
                                  reason + metric_text, self._last_recipes.get(run_id))
 
+    def _dataset(self, run_id, source, dataset):
+        if run_id in self._custom_data:
+            return deepcopy(self._custom_data[run_id][dataset])
+        return self.datasets.load(source, dataset)
+
     def _forget(self, run_id):
         for state in (self._plans, self._checked, self._tuning, self._validated, self._last_recipes):
             state.pop(run_id, None)
         self._validation_started.discard(run_id)
+        self._examiner_started.discard(run_id)
+        self._custom_data.pop(run_id, None)
+        self._custom_attacks.pop(run_id, None)
         self._skill_attempts = {k: v for k, v in self._skill_attempts.items() if k[0] != run_id}
 
     async def discard(self, run_id):

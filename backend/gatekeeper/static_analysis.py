@@ -14,7 +14,11 @@ def analyze_code(code: object, manifest: dict, policy: Policy, *, is_test: bool 
     if not isinstance(code, str):
         return [Violation(code="INVALID_OUTPUT", detail="Kód musí být řetězec.")]
     maximum = policy.skills.max_test_bytes if is_test else policy.skills.max_code_bytes
-    if len(code.encode("utf-8")) > maximum:
+    try:
+        code_bytes = code.encode("utf-8")
+    except UnicodeError:
+        return [Violation(code="INVALID_OUTPUT", detail="Kód nemá platné kódování UTF-8.")]
+    if len(code_bytes) > maximum:
         add("CODE_TOO_LARGE", "Kód překračuje limit velikosti.")
         return errors
     try:

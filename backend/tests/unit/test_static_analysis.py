@@ -47,3 +47,8 @@ def test_undeclared_and_tests(gk_policy):
     assert analyze_code('import re\n' + BASE, {'imports': []}, gk_policy)[0].code == 'UNDECLARED_IMPORT'
     assert not analyze_code('from skill import run\ndef test_empty():\n    assert run([], {}) == []', {'imports': []}, gk_policy, is_test=True)
     assert analyze_code('import os\ndef test_empty():\n    pass', {'imports': []}, gk_policy, is_test=True)
+
+
+def test_lone_surrogate_source_rejected(gk_policy):
+    errors=analyze_code('def run(inputs, params):\n    return ["\ud800"]',{'imports':[]},gk_policy)
+    assert errors[0].code=='INVALID_OUTPUT'

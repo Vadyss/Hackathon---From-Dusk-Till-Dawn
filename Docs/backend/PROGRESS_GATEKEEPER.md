@@ -26,3 +26,7 @@ Balíček nemá otevřené implementační kroky. Koordinátor pokračuje komple
 ```sh
 docker exec -w /workspace/backend frankenstein-dev-tests python -m pytest tests/unit/test_names.py tests/unit/test_policy.py tests/unit/test_static_analysis.py tests/unit/test_manifest.py tests/unit/test_plan_check.py tests/unit/test_recipe.py tests/unit/test_filter.py tests/unit/test_audit.py tests/unit/test_lessons.py tests/unit/test_registry.py tests/unit/test_evaluator.py tests/unit/test_hidden_tests.py tests/integration/test_gatekeeper_api.py tests/integration/test_calibration.py -q
 ```
+
+## Následné dokončení P3 a revize
+
+Po dokončení M0–M5 byl doplněn nezávislý Zkoušeč: soukromé ověřování a ukládání dat popisuje `PROGRESS_EXAMINER_DATA.md`. Následná revize opravila také neplatné UTF-8 a commit-point konzistenci povýšení při chybě auditu nebo úklidu. Poslední cílená sada Examiner data + registr + fasáda má 65 zelených testů (6.47 s); koordinátor dříve ověřil celou sadu 501 testů a reálný Docker smoke A/B přes nginx. Balíček je opět stabilní a bez otevřených kroků.

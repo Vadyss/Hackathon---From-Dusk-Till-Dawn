@@ -4,6 +4,7 @@ from __future__ import annotations
 from copy import deepcopy
 import hashlib
 import json
+import logging
 import os
 from pathlib import Path
 import shutil
@@ -13,6 +14,9 @@ from .audit import AuditLog, now_iso
 from .names import require_name, require_run_id, safe_join
 from .recipe import canonical_json
 from .types import SkillInfo
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 class IntegrityError(ValueError):
@@ -197,6 +201,8 @@ class Registry:
 
     def save_candidate(self, run_id: str, manifest: dict, code: str, tests: str, attempt: int = 1) -> SkillInfo:
         manifest = deepcopy(manifest)
+        if manifest.get("name") == "data":
+            raise ValueError("Název data je vyhrazen pro soukromé sady běhu.")
         with self.lock:
             folder = self._candidate_path(run_id, manifest["name"])
             if manifest["name"] in self.index["skills"]:
@@ -218,6 +224,33 @@ class Registry:
                 if stage.exists(): shutil.rmtree(stage)
             self.audit.append("candidate_created", run_id, {"skill": manifest["name"], "sha256": meta["sha256"], "attempt": attempt})
             return self._info(manifest, meta, "candidate")
+
+    def save_examiner_data(self, run_id: str, datasets: dict) -> dict[str, str]:
+        """Persist private verified run data through the registry writer only."""
+        require_run_id(run_id)
+        if set(datasets) != {"tuning", "validation"}:
+            raise ValueError("Neplatné sady Zkoušeče.")
+        datasets = deepcopy(datasets)
+        with self.lock:
+            target = self._candidate_path(run_id, "data")
+            payloads = {}
+            for name, dataset in datasets.items():
+                if dataset.labels.get("dataset") != name or dataset.labels.get("log_source") != "ssh" or "seed" in dataset.labels:
+                    raise ValueError("Neplatná soukromá metadata Zkoušeče.")
+                payloads[f"{name}/auth.log"] = ("\n".join(dataset.lines) + "\n").encode("utf-8")
+                payloads[f"{name}/labels.json"] = (canonical_json(dataset.labels) + "\n").encode("utf-8")
+            stage = target.parent / f".tmp-data-{uuid.uuid4().hex}"
+            stage.mkdir(parents=True)
+            try:
+                for relative, payload in payloads.items():
+                    atomic_write(safe_join(stage, relative), payload)
+                if target.exists():
+                    raise IntegrityError("Soukromá data tohoto běhu už existují.")
+                os.replace(stage, target)
+                _sync_dir(target.parent)
+            finally:
+                if stage.exists(): shutil.rmtree(stage)
+            return {f"data/{relative}": sha256(payload) for relative, payload in payloads.items()}
 
     def read_skill(self, run_id: str | None, name: str) -> tuple[str, dict, dict]:
         require_name(name)
@@ -333,6 +366,10 @@ class Registry:
                 atomic_json(self.index_path, self.index)
                 atomic_json(history_path, saved)
                 atomic_json(rule_path, saved)
+                result = [self._info(artifacts[name][1], self.index["skills"][name], "installed") for name in installed]
+                for name in installed:
+                    self.audit.append("skill_promoted", run_id, {"skill": name, "sha256": self.index["skills"][name]["sha256"]})
+                self.audit.append("rule_approved", run_id, {"rule_name": recipe["name"], "recipe_sha256": recipe_sha256(recipe)})
             except Exception:
                 for name in installed:
                     shutil.rmtree(self._folder(name))
@@ -341,15 +378,21 @@ class Registry:
                 history_path.unlink(missing_ok=True)
                 if old_rule is None: rule_path.unlink(missing_ok=True)
                 else: atomic_write(rule_path, old_rule)
+                try:
+                    self.audit.append("integrity_violation", run_id, {"rule_name": recipe["name"], "reason": "Povýšení bylo při chybě zápisu vráceno zpět."})
+                except Exception:
+                    LOGGER.warning("Audit neumožnil zaznamenat vrácení povýšení.")
                 raise
             finally:
                 for stage in staged:
-                    if stage.exists(): shutil.rmtree(stage)
-            for name in installed:
-                self.audit.append("skill_promoted", run_id, {"skill": name, "sha256": self.index["skills"][name]["sha256"]})
-            self.audit.append("rule_approved", run_id, {"rule_name": recipe["name"], "recipe_sha256": recipe_sha256(recipe)})
-            result = [self.skill_info(name) for name in installed]
-            self.discard(run_id)
+                    try:
+                        if stage.exists(): shutil.rmtree(stage)
+                    except OSError:
+                        LOGGER.warning("Dočasnou složku povýšení se nepodařilo uklidit.")
+            try:
+                self.discard(run_id)
+            except Exception:
+                LOGGER.warning("Schválený běh má zbytky kandidátů; uklidí se při příštím startu.")
             return result
 
     def approved_rule(self, attack_type: str) -> dict | None:

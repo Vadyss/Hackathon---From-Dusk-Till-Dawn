@@ -12,7 +12,9 @@ from .types import Plan, RecipeVerdict, Violation
 
 
 def canonical_json(value: object) -> str:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+    result = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+    result.encode("utf-8")
+    return result
 
 
 def display_recipe(raw: object) -> dict:

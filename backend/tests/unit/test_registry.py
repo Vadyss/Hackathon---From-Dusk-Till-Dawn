@@ -150,3 +150,47 @@ def test_promotion_uses_verified_artifact_snapshot(tmp_path,gk_manifests,gk_reci
     result=registry.promote('run_aaaa',recipe,[first,second],validated(recipe))
     assert {s.name for s in result}=={'new_first','new_second'}
     assert registry.read_skill(None,'new_second')[0]==CODE
+
+
+def test_audit_failure_rolls_back_promotion(tmp_path,gk_manifests,gk_recipe,monkeypatch):
+    registry=new_registry(tmp_path); info=candidate(registry,gk_manifests)
+    recipe=deepcopy(gk_recipe); recipe['aggregation']['skill']='new_counter'
+    original=registry.audit.append
+    def broken_audit(kind,*args,**kwargs):
+        if kind=='rule_approved': raise OSError('audit disk full')
+        return original(kind,*args,**kwargs)
+    monkeypatch.setattr(registry.audit,'append',broken_audit)
+    with pytest.raises(OSError): registry.promote('run_aaaa',recipe,[info],validated(recipe))
+    assert 'new_counter' not in registry.index['skills']
+    assert not (tmp_path/'registry/new_counter').exists()
+    assert registry.approved_rule('ssh_bruteforce') is None
+    assert registry.candidate_infos('run_aaaa')==[info]
+
+
+def test_postcommit_cleanup_failure_preserves_approval(tmp_path,gk_manifests,gk_recipe,monkeypatch):
+    registry=new_registry(tmp_path); info=candidate(registry,gk_manifests)
+    recipe=deepcopy(gk_recipe); recipe['aggregation']['skill']='new_counter'
+    def broken_cleanup(run_id): raise OSError('cleanup denied')
+    monkeypatch.setattr(registry,'discard',broken_cleanup)
+    result=registry.promote('run_aaaa',recipe,[info],validated(recipe))
+    assert result[0].status=='installed'
+    assert registry.approved_rule('ssh_bruteforce')==recipe
+    assert registry.read_skill(None,'new_counter')[0]==CODE
+
+
+def test_postcommit_stage_cleanup_failure_preserves_approval(tmp_path,gk_manifests,gk_recipe,monkeypatch):
+    registry=new_registry(tmp_path); info=candidate(registry,gk_manifests)
+    recipe=deepcopy(gk_recipe); recipe['aggregation']['skill']='new_counter'
+    import gatekeeper.registry as module
+    actual_exists=Path.exists
+    actual_remove=module.shutil.rmtree
+    def leftover(path):
+        return True if path.name.startswith('.tmp-new_counter-') else actual_exists(path)
+    def denied(path,*args,**kwargs):
+        if Path(path).name.startswith('.tmp-new_counter-'): raise OSError('stage cleanup denied')
+        return actual_remove(path,*args,**kwargs)
+    monkeypatch.setattr(Path,'exists',leftover)
+    monkeypatch.setattr(module.shutil,'rmtree',denied)
+    result=registry.promote('run_aaaa',recipe,[info],validated(recipe))
+    assert result[0].status=='installed'
+    assert registry.approved_rule('ssh_bruteforce')==recipe

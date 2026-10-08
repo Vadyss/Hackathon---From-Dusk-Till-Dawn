@@ -43,3 +43,9 @@ def test_malformed_filter_is_verdict(field,value,gk_recipe,gk_plan,gk_manifests,
 def test_nonstring_nested_key_is_verdict(gk_recipe,gk_plan,gk_manifests,gk_policy):
     raw=deepcopy(gk_recipe); raw['aggregation']['params']={2:'bad'}
     assert check_recipe(raw,gk_plan,gk_manifests,gk_policy).violations[0].code == 'RECIPE_INVALID'
+
+
+def test_lone_surrogate_json_rejected(gk_recipe,gk_plan,gk_manifests,gk_policy):
+    raw=deepcopy(gk_recipe); raw['filter'][0]['value']='\ud800'
+    assert check_recipe(raw,gk_plan,gk_manifests,gk_policy).violations[0].code=='RECIPE_INVALID'
+    assert display_recipe(raw)=={'name':raw['name']}

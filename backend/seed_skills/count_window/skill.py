@@ -23,5 +23,5 @@ def run(inputs, params):
                 left += 1
             results.append({"group": dict(zip(fields, key)), "window_start": float(end - window),
                             "window_end": float(end), "count": right - left,
-                            "_lines": [item["_line"] for item in events[left:right]][:500]})
+                            "_lines": [item["_line"] for item in events[left:min(right, left + 500)]]})
     return results

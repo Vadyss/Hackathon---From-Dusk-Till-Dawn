@@ -42,7 +42,10 @@ async def run_pipeline(run, gk, roles, emitter, settings, voice=None):
         feedback = None
         for attempt in range(1, 4):
             raw = await roles.planner.propose(run.request, catalog, samples, lessons, feedback, attempt=attempt)
-            verdict = gk.check_plan(run.run_id, raw)
+            if isinstance(raw, dict) and raw.get("attack_type") == "custom":
+                verdict = await gk.prepare_custom_plan(run.run_id, raw)
+            else:
+                verdict = gk.check_plan(run.run_id, raw)
             if verdict.request_rejected:
                 await fail("REQUEST_REJECTED", "Požadavek nelze zpracovat: " + verdict.reason)
                 return
@@ -56,6 +59,7 @@ async def run_pipeline(run, gk, roles, emitter, settings, voice=None):
             await fail("PLAN_INVALID")
             return
         await emitter.emit(run, "plan_ready", "plan", {"steps": plan.steps, "skills_needed": [s.name for s in plan.skills]})
+        catalog = gk.catalog(run.run_id)
         for skill in plan.existing_skills:
             await emitter.emit(run, "skill_reused", "plan", {"skill": gk.skill_info(skill.name)})
             run.stats.skills_reused += 1

@@ -29,3 +29,8 @@ def test_parser_source_required(gk_policy, gk_manifests):
 def test_malformed_parameter_schema_is_verdict(schema,gk_policy,gk_manifests):
     raw = deepcopy(gk_manifests['count_window']); raw['params'] = {'value':schema}
     assert validate_manifest(raw,None,gk_policy)[1]
+
+
+def test_lone_surrogate_manifest_rejected(gk_manifests,gk_policy):
+    raw=deepcopy(gk_manifests['count_window']); raw['description']='\ud800'
+    assert validate_manifest(raw,None,gk_policy)[1][0].code=='INVALID_MANIFEST'

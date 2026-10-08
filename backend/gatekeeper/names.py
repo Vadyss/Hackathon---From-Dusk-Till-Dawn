@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from pathlib import Path
 from .types import Violation
 
@@ -43,7 +44,7 @@ def safe_join(base: Path, *parts: str) -> Path:
 
 
 def clip(value: str, limit: int) -> str:
-    cleaned = "".join(c for c in value if c in "\n\t" or (ord(c) >= 32 and ord(c) != 127))
+    cleaned = "".join(c for c in value if c in "\n\t" or not unicodedata.category(c).startswith("C"))
     return cleaned if len(cleaned) <= limit else cleaned[:limit - 1] + "…"
 
 

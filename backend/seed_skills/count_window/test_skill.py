@@ -35,3 +35,10 @@ def test_composite_group():
 def test_same_timestamp():
     rows = run([{"_line": 1, "ts": 0, "src_ip": "a"}, {"_line": 0, "ts": 0, "src_ip": "a"}], PARAMS)
     assert all(row["count"] == 2 and row["_lines"] == [0, 1] for row in rows)
+
+
+def test_large_window_preserves_count_and_bounded_sorted_lines():
+    events = [{"_line": i, "ts": 1, "src_ip": "a"} for i in range(750, 0, -1)]
+    rows = run(events, PARAMS)
+    assert len(rows) == 750 and all(row["count"] == 750 for row in rows)
+    assert all(row["_lines"] == list(range(1, 501)) for row in rows)

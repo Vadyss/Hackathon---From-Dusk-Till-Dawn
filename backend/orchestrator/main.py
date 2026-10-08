@@ -27,29 +27,37 @@ def create_app(*, settings=None, gatekeeper=None, sandbox=None, roles=None, pipe
     @asynccontextmanager
     async def lifespan(app):
         sandbox_client = sandbox
-        if sandbox_client is None or gatekeeper is None:
-            from gatekeeper.api import Gatekeeper, SandboxClient
-
-            sandbox_client = sandbox_client or SandboxClient(config.sandbox_url, timeout_s=config.sandbox_timeout_s)
-            app.state.gatekeeper = gatekeeper or Gatekeeper(config.gatekeeper_config(), sandbox_client)
-        else:
-            app.state.gatekeeper = gatekeeper
-        role_config = replace(config, llm_max_calls_per_run=min(config.llm_max_calls_per_run,
-                              getattr(app.state.gatekeeper, "max_llm_calls", config.llm_max_calls_per_run)))
-        if roles is None:
-            from orchestrator.planner import make_roles
-
-            app.state.roles = make_roles(role_config)
-        else:
-            app.state.roles = roles
-        if voice is None:
-            from orchestrator.voice import VoiceService
-
-            app.state.voice = VoiceService(config, app.state.emitter)
-        else:
-            app.state.voice = voice
+        app.state.roles = roles
+        app.state.voice = voice
+        app.state.examiner = None
         logging.basicConfig(level=getattr(logging, config.log_level.upper(), logging.INFO))
         try:
+            if sandbox_client is None or gatekeeper is None:
+                from gatekeeper.api import Gatekeeper, SandboxClient
+
+                sandbox_client = sandbox_client or SandboxClient(config.sandbox_url, timeout_s=config.sandbox_timeout_s)
+
+                async def examine(description, log_format):
+                    return await app.state.examiner.generate(description, log_format)
+
+                app.state.gatekeeper = gatekeeper or Gatekeeper(config.gatekeeper_config(), sandbox_client,
+                                                               examine if config.examiner_enabled else None)
+            else:
+                app.state.gatekeeper = gatekeeper
+            role_config = replace(config, llm_max_calls_per_run=min(config.llm_max_calls_per_run,
+                                  getattr(app.state.gatekeeper, "max_llm_calls", config.llm_max_calls_per_run)))
+            if roles is None:
+                from orchestrator.planner import make_roles
+
+                app.state.roles = make_roles(role_config)
+            if config.examiner_enabled:
+                from examiner import Examiner
+
+                app.state.examiner = Examiner(app.state.roles.client)
+            if voice is None:
+                from orchestrator.voice import VoiceService
+
+                app.state.voice = VoiceService(config, app.state.emitter)
             try:
                 available = await sandbox_client.health()
             except Exception:
@@ -58,14 +66,13 @@ def create_app(*, settings=None, gatekeeper=None, sandbox=None, roles=None, pipe
                 logging.getLogger(__name__).warning("Sandbox není dostupný; běh skončí SANDBOX_ERROR.")
             yield
         finally:
-            await app.state.store.close()
-            await app.state.hub.close()
-            await sandbox_client.close()
-            if app.state.voice:
-                await app.state.voice.close()
-            close_roles = getattr(app.state.roles, "close", None)
-            if close_roles:
-                await close_roles()
+            for resource in (app.state.store, app.state.hub, sandbox_client, app.state.voice, app.state.roles):
+                close = getattr(resource, "close", None)
+                if close:
+                    try:
+                        await close()
+                    except Exception:
+                        logging.getLogger(__name__).exception("Nepodařilo se uzavřít zdroj backendu.")
 
     app = FastAPI(title="Frankenstein", lifespan=lifespan, docs_url=None, redoc_url=None)
     register_handlers(app)
