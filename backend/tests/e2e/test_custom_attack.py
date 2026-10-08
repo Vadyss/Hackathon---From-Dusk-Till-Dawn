@@ -47,10 +47,10 @@ class CustomClient(MockLlm):
         return await super().chat(role, system, user, **kwargs)
 
 
-def custom_app(tmp_path, enabled=True, generator=None):
+def custom_app(tmp_path, enabled=True, generator=None, client_type=CustomClient):
     settings = replace(Settings(), llm_provider="mock", mock_delay_ms=0,
                        examiner_enabled=enabled, data_dir=tmp_path / "data")
-    llm = CustomClient(settings, generator)
+    llm = client_type(settings, generator)
     return create_app(settings=settings, sandbox=InProcessSandbox(), roles=make_roles(settings, llm)), llm
 
 
@@ -84,6 +84,27 @@ def test_custom_attack_complete_with_private_data_and_original_events(tmp_path, 
         assert not candidates.exists()
         assert run_id not in app.state.gatekeeper._custom_data
         assert app.state.gatekeeper.approved_rule(SLUG)["attack_type"] == SLUG
+
+
+def test_invalid_custom_plan_can_be_corrected_before_single_examination(tmp_path):
+    class CorrectingClient(CustomClient):
+        async def chat(self, role, system, user, **kwargs):
+            reply = await super().chat(role, system, user, **kwargs)
+            if role == "planner" and kwargs["context"]["attempt"] == 1:
+                invalid = json.loads(reply.text)
+                invalid["skills"] = invalid["skills"][:1]
+                return LlmResult(json.dumps(invalid), None, "mock-independent")
+            return reply
+
+    app, llm = custom_app(tmp_path, client_type=CorrectingClient)
+    with TestClient(app) as client:
+        run_id, events = start(client, "Chci vlastní typ SSH útoku.")
+        assert events[-1]["type"] == "awaiting_approval", events
+        assert [call["role"] for call in llm.calls] == ["planner", "planner", "examiner", "rule_author", "summary"]
+        assert events[1]["type"] == "policy_rejected"
+        assert events[1]["data"]["target"] == "plan"
+        assert events[1]["data"]["violations"][0]["code"] == "PLAN_STRUCTURE"
+        assert client.post(f"/api/runs/{run_id}/approve", json={}).status_code == 200
 
 
 @pytest.mark.parametrize("enabled,generator,examiner_calls", [

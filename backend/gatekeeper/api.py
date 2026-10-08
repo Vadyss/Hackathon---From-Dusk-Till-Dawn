@@ -98,7 +98,7 @@ class Gatekeeper:
         try:
             custom = raw.get("custom_attack") if isinstance(raw, dict) else None
             if (not self.examiner_enabled or self.examiner is None or run_id in self._examiner_started
-                    or raw.get("intent") != "detection_rule" or raw.get("log_source") != "ssh"
+                    or raw.get("attack_type") != "custom" or raw.get("intent") != "detection_rule" or raw.get("log_source") != "ssh"
                     or not isinstance(custom, dict) or set(custom) != {"slug", "description"}
                     or not valid_name(custom.get("slug")) or custom["slug"] in self.datasets.catalog()["attack_types"]
                     or not isinstance(custom.get("description"), str) or not custom["description"].strip()
@@ -108,6 +108,17 @@ class Gatekeeper:
             description = clip(custom["description"], 300).strip()
             if not description:
                 raise ValueError(reason)
+            # Reject an invalid plan before spending the independent examination.
+            # A corrected planner attempt can then use the normal three attempts.
+            normalized = deepcopy(raw)
+            normalized["attack_type"] = custom["slug"]
+            normalized["custom_attack"]["description"] = description
+            catalog = self.catalog(run_id)
+            catalog["attack_types"][custom["slug"]] = {"log_source": "ssh", "description": description}
+            preflight = check_plan(normalized, catalog, self.policy)
+            if not preflight.ok:
+                self.audit.append("plan_rejected", run_id, {"violations": [v.model_dump() for v in preflight.violations]})
+                return preflight
             self._examiner_started.add(run_id)
             fmt = self.datasets.catalog()["log_sources"]["ssh"]["description"]
             generated = await self.examiner(description, fmt)
@@ -121,8 +132,7 @@ class Gatekeeper:
             self._custom_attacks[run_id] = {"slug": custom["slug"], "description": description}
             self.audit.append("examiner_dataset", run_id, {"attack_type": custom["slug"], "digests": digests,
                               "counts": {name: len(dataset.labels["instances"]) for name, dataset in prepared.items()}})
-            raw["attack_type"] = custom["slug"]
-            return self.check_plan(run_id, raw)
+            return self.check_plan(run_id, normalized)
         except asyncio.CancelledError:
             raise
         except Exception:
