@@ -1,6 +1,6 @@
 # Backend Frankenstein — závěrečný report
 
-Datum: 2026-10-08. Zdroj požadavků: celý dodaný `BACKEND_SPEC.md`; veřejné rozhraní odpovídá [kontraktu v1](../kontrakt.md). Architektura: [ARCHITECTURE.md](ARCHITECTURE.md), pokračování: [PROGRESS.md](PROGRESS.md), nálezy a opravy: [SECURITY_REVIEW.md](SECURITY_REVIEW.md).
+Aktualizováno: 2026-10-09. Zdroj požadavků: celý dodaný `BACKEND_SPEC.md`; veřejné rozhraní odpovídá [kontraktu v1](../kontrakt.md). Architektura: [ARCHITECTURE.md](ARCHITECTURE.md), pokračování: [PROGRESS.md](PROGRESS.md), nálezy a opravy: [SECURITY_REVIEW.md](SECURITY_REVIEW.md).
 
 ## Výsledek
 
@@ -8,7 +8,7 @@ Backend přijímá český požadavek, sestaví plán, postaví chybějící Pyt
 
 LLM navrhuje, deterministický Gatekeeper rozhoduje a zapisuje. Backend kód dovedností nikdy neimportuje ani neprovádí; každá úloha běží v novém omezeném procesu sandboxu. HTTP i WebSocket vracejí stejné uložené události s rostoucím `seq`. Součástí jsou mock scénáře A–F, SSH i webová data, auditní řetěz, karanténa změněných artefaktů, poučení, volitelný hlas a klient skutečného poskytovatele.
 
-Frontend, jeho mock a kontrakt nebyly upraveny. Existující produkční stack `hackathon-*` a jeho data se nerestartovaly ani neměnily. Práce neprovedla push, merge ani deployment. Integrační ověření používá oddělené projekty na portech 13000 a 13001.
+Frontend, jeho mock, nginx, kontrakt, Gatekeeper, politika a data nebyly při živém ověřování upraveny. Výslovně požadovaný místní stack `hackathon` běží bez demo overridu na portu 3000. Žádná produkční data ani svazky se nemažou; cloudový deployment, push a merge se neprovedly. Podrobné živé důkazy: [LLM_LIVE_TEST.md](LLM_LIVE_TEST.md).
 
 ## Spuštění s poskytovatelem LLM
 
@@ -78,13 +78,13 @@ docker exec -w /workspace/backend frankenstein-dev-tests python -m pytest -q
 
 | Ověření | Finální výsledek |
 |---|---|
-| Celá sada Python 3.12 po poslední integraci | **506 passed / 18.61 s; jeden dependency deprecation warning, žádný skip/xfail.** |
-| Přesný `backend/scripts/test.sh` po poslední integraci | **506 passed / 18.61 s; `frankenstein-tests:local`, `BACKEND_TEST_SKIP_INSTALL=1`.** |
-| Finální backend/sandbox image build | **Oba exit 0; poslední zdroje, offline wheels, `--network=none`. Runtime izolace beze změny.** |
+| Celá sada Python 3.12 po poslední integraci | **613 passed / 20.47 s; Docker --network none, jeden dependency warning, žádný skip/xfail.** |
+| Nezměněný relay, falešný transport | **36 passed / 0.17 s.** |
+| Finální backend/sandbox image build | **Standardní Dockerfiles, online build exit 0; poslední zdroje. Celý místní stack up -d --build a health přes 3000 prošly.** |
 | Finální čistý Compose smoke A → approve → B → approve přes nginx | **Prošel: `frankenstein-final`, port 13001; 185 s nečinného WS s ping/pong, poté shodné HTTP/WS události A/B, instalace a opětovné použití. Auditní řetěz po schválení platný.** |
 | Sandbox bez tajemství/internetu, read-only | **Finální kontejner: UID ≠ 0; API klíče chybí; internet a zápis do /app blokovány; interní síť, drop ALL, no-new-privileges ověřeno.** |
 | GitHub CI na vzdáleném runneru | **Nespouštěno bez push; doplněné joby čekají na CI.** |
-| Skutečný poskytovatel LLM / ElevenLabs | **Nevyvoláno; ruční postup níže.** |
+| Skutečný poskytovatel LLM / ElevenLabs | **Apify relay ověřen skutečnými A/B/C/E běhy; každý scénář dvě po sobě jdoucí schválení. ElevenLabs nevoláno.** |
 
 Průběžná modulová ověření jsou v PROGRESS dokumentech. Automatické testy používají fake HTTP transporty, mock LLM, dočasná data a skutečný omezený podproces runneru. Externí LLM/hlasové volání není součástí testů.
 
@@ -96,9 +96,11 @@ Průběžná modulová ověření jsou v PROGRESS dokumentech. Automatické test
 |---|---|
 | `LLM_PROVIDER` | `apify`; také `openai_compatible` nebo `mock` |
 | `APIFY_TOKEN`, `LLM_API_KEY` | Prázdné; Apify přednostně používá APIFY_TOKEN, jinak LLM_API_KEY |
-| `LLM_BASE_URL`, `LLM_MODEL` | `https://openrouter.apify.actor/api/v1`, `openrouter/auto` |
-| `LLM_MODEL_PLANNER`, `LLM_MODEL_FORGE`, `LLM_MODEL_RULE`, `LLM_MODEL_SUMMARY`, `LLM_MODEL_EXAMINER` | Dědí `LLM_MODEL` |
-| `LLM_TIMEOUT_S`, `LLM_MAX_TOKENS` | 120 s, 2000 tokenů |
+| `LLM_BASE_URL`, `LLM_MODEL` | `https://piquant-peacoat--llm-relay.apify.actor/v1`, `anthropic/claude-sonnet-5.5` |
+| `LLM_MODEL_PLANNER`, `LLM_MODEL_FORGE`, `LLM_MODEL_RULE`, `LLM_MODEL_SUMMARY` | Dědí `LLM_MODEL` |
+| `LLM_MODEL_EXAMINER`, `LLM_MODEL_FALLBACK` | `deepseek/deepseek-v4.1-flash`; fallback zůstane aktivní do konce běhu po dvou primárních provider chybách |
+| `LLM_REASONING_EFFORT` | Compose `low`, standalone prázdné = provider default; při nastavení reasoning zůstává enabled=true |
+| `LLM_TIMEOUT_S`, `LLM_MAX_TOKENS`, `LLM_MAX_TOKENS_CAP` | 180 s, 16000 / lokální strop 32000; počátečních 8000 nestačilo pro forge |
 | `LLM_MAX_RETRIES`, `LLM_MAX_CALLS_PER_RUN` | Nejvýš 2 retry, nejvýš 25 volání; retry i JSON oprava se počítají |
 | `MOCK_SCENARIO`, `MOCK_DELAY_MS` | Prázdný scénář = výběr podle textu; 400 ms, demo 600 ms |
 | `SANDBOX_URL`, `SANDBOX_TIMEOUT_S` | Compose `http://sandbox:8000`, klient 30 s; politika test 10 s / run 15 s |
@@ -106,7 +108,7 @@ Průběžná modulová ověření jsou v PROGRESS dokumentech. Automatické test
 | `DATASETS_DIR`, `POLICY_PATH`, `SEED_SKILLS_DIR` | V image `/app/datasets`, `/app/policy/policy.yaml`, `/app/seed_skills` |
 | `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`, `ELEVENLABS_MODEL_ID` | Klíč/ID prázdné; model `eleven_multilingual_v2` |
 | `EXAMINER_ENABLED` | `false`; pouze volitelný P3 režim |
-| `RUN_TIMEOUT_S`, `CORS_ORIGINS`, `LOG_LEVEL` | 900 s; prázdné CORS = stejný origin; `INFO` |
+| `RUN_TIMEOUT_S`, `CORS_ORIGINS`, `LOG_LEVEL` | 1500 s; prázdné CORS = stejný origin; `INFO` |
 
 Politika stanovuje minimální precision/recall 0.9, tři pokusy plánu/kovárny/pravidla, jedinou validaci, povolené importy a DSL operátory. Změna `.env` nesmí tato omezení obejít. Politika se za běhu nezapisuje.
 
@@ -136,7 +138,7 @@ Další rozhodnutí: [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md). Předání frontend
 
 ## Ruční ověření skutečného LLM a hlasu
 
-Tato ověření spouští člověk se svými klíči. Skutečné volání může čerpat kredit poskytovatele. Demo override klíče vypíná, proto použijte lokální stack z první části.
+Živé LLM již prošlo podle [LLM_LIVE_TEST.md](LLM_LIVE_TEST.md). Následující příkazy umožní opakování; hlas zůstává volitelným ručním krokem. Demo override klíče vypíná.
 
 Po nastavení `.env` a spuštění `frankenstein-local` proveďte jednoduchý provider probe:
 
@@ -164,4 +166,15 @@ docker compose -p frankenstein-local -f docker-compose.yml exec -T backend pytho
 
 Přihlašování není součástí kontraktu v1; aplikace je určená pro důvěryhodný lokální přístup. Orchestrátor a Gatekeeper sdílejí backendový proces, hranice autority je modulová a hlídaná testy. Syntetická data poskytují reprodukovatelné demo, nikoli důkaz účinnosti na produkčních logách. Běhy, události a audio jsou v paměti; restart je odstraní. Registr/pravidla/audit/poučení ve svazku přetrvají. Pythonové guardy jsou obrana do hloubky nad izolací procesu a kontejneru.
 
-První lidská kontrola: `gatekeeper/api.py`, povýšení v `registry.py`, sandbox runner/server, `policy/policy.yaml` a [bezpečnostní revize](SECURITY_REVIEW.md). Pak ověřit živého poskytovatele/hlas pomocí vlastních klíčů a teprve poté rozhodnout o případném deploymentu. Povolení deploymentu nebylo součástí implementace.
+První lidská kontrola: `gatekeeper/api.py`, povýšení v `registry.py`, sandbox runner/server, `policy/policy.yaml` a [bezpečnostní revize](SECURITY_REVIEW.md). Živé LLM už je ověřené; hlas zůstává volitelný. Místní stack byl spuštěn dle explicitního požadavku, cloudový deployment se neprováděl.
+
+## Živý relay a merge
+
+Ověřená konfigurace je 16000 tokenů, lokální cap 32000, reasoning effort low, klient 180 s a běh 1500 s. Na čistých svazcích A4/A5 a E4/E5 prošly dvě po sobě jdoucí schválení, B1/B2 znovu použily distinct_count_window z těchto A běhů; C prošlo s nezměněnou injection v SSH vzorku. Všechny úspěšné sady mají precision=recall=1.0. Po schválení obou A/B dvojic auditní řetěz platný. Přesné záložní GET events: [run_a.json](live_runs/run_a.json), [run_b.json](live_runs/run_b.json).
+
+Příkazy pro Adama (nebyly spuštěny):
+
+```sh
+git push -u origin feat/backend-toolsmith
+gh pr create --base main --head feat/backend-toolsmith --title "Backend: live LLM through Apify relay" --body-file Docs/backend/PR_DESCRIPTION.md
+```

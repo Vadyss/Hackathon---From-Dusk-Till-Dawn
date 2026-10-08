@@ -2,7 +2,7 @@
 
 ## Aktuální stav
 
-2026-10-08: průzkum a úplné čtení specifikace dokončeno. PLAN.md vytvořen před první implementací. Aktivní větev feat/backend-toolsmith; nedotýkat se existujícího stacku hackathon-*.
+2026-10-08: průzkum a úplné čtení specifikace dokončeno. PLAN.md vytvořen před první implementací. Aktivní větev feat/backend-toolsmith. Původní omezení existujícího místního stacku nahradil výslovný požadavek z 2026-10-09 na docker compose up bez overridu; cloudový deployment zůstává mimo autorizaci.
 
 ## Milníky
 
@@ -43,3 +43,15 @@ Druhý build: kompaktní forge prompt o 24 % kratší, striktní plochý JSON a 
 Diagnostika A2/E2: finish_reason=length i při neprázdném krátkém content (306/2312/2018 znaků); JSON je skutečně useknutý. Zvětšena pouze místní .env na LLM_MAX_TOKENS=16000, cap=32000 pro následující pokusy a finální stack. 16000 bylo přijato bez HTTP chyby; maximální upstream strop se zatím nepotvrdil. Schémata/prompt kompaktní; politika a kontrolní limity se nemění. C dokončeno po dvou consecutivepasses.
 
 A3/E3 rovněž FORGE_FAILED kvůli useknutému JSON, i při 16000/32000. Ověřen zdokumentovaný parametr reasoning.enabled=true/effort=low přímým relay smoke: HTTP200, validní JSON, 44 tokens. Přidána opt-in LLM_REASONING_EFFORT do backendu; místní .env low, reasoning nevypíná. Následující A4/E4 jsou poslední dva možné páry pokusů (A/E maximálně5); C dva consecutivepasses již splněny.
+
+A4/E4 úspěšně schváleny s max16000 a effortlow (obě sadyP=R=1.0). A4 modeloprava po skill_tests_failed, 5calls23416tokens; E4 dvě nové dovednosti, 5calls22935tokens. Záznam přesného GETa je live_runs/run_a.json. B1 nyní naA4 registru13019; A5/E5 zbývají jako poslední pokusy k2consecutivepasses. Finální offline sada bez sítě:613passed/19.78s +36relay/0.17s; dependencywarningpouzeStarletteAnyIO.
+
+## Finální předání — 2026-10-09
+
+Živé scénáře dokončené: A4/A5, B1/B2, E4/E5 vždy dvě schválení za sebou; C1/C2 i C3/C4 (finální konfigurace) úspěšné. Tuning i validation P=R=1.0. B má skills_built=0, skills_reused=2 a znovu používá agent distinct_count_window z A. Vnější pokusy celkem A=5, B=2, C=4, E=5; žádný limit překročen. Neúspěšné počáteční pokusy a jejich counters jsou zachované. Audit obou schválených A/B dvojic platný. SSH vzorek: 20 řádků, injection přítomná, C ji ignorovalo a žádnou výjimku neprosadilo.
+
+Finální konfigurace v .env i Compose: relay/v1, Claude Sonnet 5.5, Deepseek Examiner/fallback, max_tokens=16000, cap=32000, effort=low (reasoning zapnuté), timeout=180, run_timeout=1500. Samostatný klient má effort volitelné. True upstream cap nebyl zjištěn; 32000 přijat bez zaznamenané token-limit chyby. Vlastní relay timeout je 120 s. Chráněné soubory identické vůči 5519608; token se necommitoval. Celá sada bez sítě: 613 passed / 20.47 s; relay 36 passed / 0.17 s. Mock demo HTTP/WS A→approve→B→approve prošlo. Dle požadavku místní docker compose up -d --build bez overridu prošlo a port 3000 vrací health OK.
+
+Důkazy jsou v LLM_LIVE_TEST.md, live_runs/*_*.json a provider_metadata.json. Přesné GET events úspěšné dvojice A4/B1 jsou run_a.json/run_b.json. REPORT a PR_DESCRIPTION hotové. Dokončené testovací kontejnery lze zastavit; jejich svazky, sítě a metadata byly zachované. Poslední izolované projekty použily dočasné explicitní subnety po vyčerpání Docker poolu. Pro pokračování nevytvářejte další A/E pokusy: oba dosáhly limitu 5 a dokončily požadované dva úspěchy.
+
+Lokální práce a důkazy jsou dokončené; Adam provede push/PR a vzdálené CI. Žádný merge/push/cloudový deployment nebyl proveden. Známá omezení: vnitřní LLM opravy, 120s relay deadline, neznámý true token ceiling a původní REQUEST_REJECTED klasifikace budgetu při volitelných custom Examiner datech (Gatekeeper se neměnil). Po finálním commitu není aktivní vývojový krok.

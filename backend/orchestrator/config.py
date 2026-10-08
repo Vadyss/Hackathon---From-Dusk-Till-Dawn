@@ -26,8 +26,8 @@ class Settings:
     llm_model_fallback: str = "deepseek/deepseek-v4.1-flash"
     llm_reasoning_effort: str = ""
     llm_timeout_s: float = 180
-    llm_max_tokens: int = 8000
-    llm_max_tokens_cap: int = 16000
+    llm_max_tokens: int = 16000
+    llm_max_tokens_cap: int = 32000
     llm_max_retries: int = 2
     llm_max_calls_per_run: int = 25
     mock_scenario: str = ""

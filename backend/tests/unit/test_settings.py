@@ -37,7 +37,7 @@ def test_relay_models_and_execution_limits_have_required_defaults():
     assert settings.llm_model_examiner == "deepseek/deepseek-v4.1-flash"
     assert settings.llm_model_fallback == "deepseek/deepseek-v4.1-flash"
     assert settings.llm_reasoning_effort == ""
-    assert settings.llm_max_tokens == 8000 and settings.llm_max_tokens_cap == 16000
+    assert settings.llm_max_tokens == 16000 and settings.llm_max_tokens_cap == 32000
     assert settings.llm_timeout_s == 180 and settings.run_timeout_s == 1500
     assert settings.llm_max_retries == 2 and settings.llm_max_calls_per_run == 25
     assert Settings.from_env() == settings
