@@ -7,9 +7,17 @@ doplňuje při běhu jako token uživatele, který běh spustil.
 [Proměnné prostředí Apify](https://docs.apify.com/actors/development/programming-interface/environment-variables).
 
 Relay zachovává HTTP status a tělo odpovědi upstreamu, odstraňuje hop-by-hop
-hlavičky a čeká nejvýše 120 sekund. SSE odpovědi také zachovává, ale doručí je
+hlavičky a čeká nejvýše 180 sekund. SSE odpovědi také zachovává, ale doručí je
 až po načtení celého těla. Timeout vrací `504`, chyba spojení `502`.
 Tokeny, prompty ani těla požadavků a odpovědí neloguje.
+
+Timeout je sjednocený s výchozím `LLM_TIMEOUT_S=180` backendu. Apify Standby má
+podle dokumentace limit **5 minut do první odpovědi**, interní výběr běhu má
+limit **2 minuty**; aplikační deadline 180 s je uvnitř limitu platformy. Výběr
+nebo start Actoru se může přičíst k latenci, backend tedy může vypršet dřív než
+relay při studeném startu. Standby timeout zde nemá vlastní nastavované pole:
+`.actor/actor.json` nadále používá `usesStandbyMode: true` a port z prostředí.
+[Oficiální limity Standby](https://docs.apify.com/actors/development/programming-interface/standby#timeouts).
 
 ## Ruční nasazení
 
@@ -29,6 +37,21 @@ Přihlášení je interaktivní. `apify push` nahraje a sestaví Actor `llm-rela
 `"usesStandbyMode": true` v `.actor/actor.json` zároveň zapne Standby.
 [CLI příkazy](https://docs.apify.com/cli/docs/reference),
 [zapnutí Standby](https://docs.apify.com/actors/development/programming-interface/standby).
+
+Přesné příkazy pro aktualizaci již nasazeného relay (z kořene repozitáře):
+
+```sh
+apify login
+cd "apify/llm-relay"
+apify push --build-tag latest
+```
+
+Cloudové nasazení provede Adam. Do úspěšného push/buildu a používání nového buildu
+ve Standby zůstává vzdálený Actor na starém timeoutu 120 s. V Console ověřte,
+že Standby používá build tag `latest`; není potřeba měnit token ani zapínat
+logování. Pokud běží starý Standby run, ověřte novou verzi po jeho přirozeném
+ukončení dle idle timeoutu, případně jej ručně zastavte v Console. Tato kontrola
+nespouští žádný deploy ani zastavení vzdálených běhů.
 
 Server naslouchá na `0.0.0.0` a portu `ACTOR_WEB_SERVER_PORT` poskytnutém
 platformou, obvykle `4321`. `GET /health` i `GET /` vracejí `{"status":"ok"}`;

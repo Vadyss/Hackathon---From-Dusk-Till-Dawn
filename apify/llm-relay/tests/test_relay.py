@@ -141,10 +141,10 @@ def test_readiness_routes_and_timeout_client_configuration():
         assert client.get("/").json() == {"status": "ok"}
         assert client.get("/health").json() == {"status": "ok"}
         timeout = client.app.state.client.timeout
-        assert timeout.connect == timeout.read == timeout.write == timeout.pool == 120
+        assert timeout.connect == timeout.read == timeout.write == timeout.pool == 180
         assert not client.app.state.client.follow_redirects
         assert not client.app.state.client.trust_env
-        assert relay.TIMEOUT_S == 120.0
+        assert relay.TIMEOUT_S == 180.0
 
 
 @pytest.mark.parametrize("token", [None, "", " \n\t"])

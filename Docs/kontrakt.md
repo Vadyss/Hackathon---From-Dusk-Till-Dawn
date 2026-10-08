@@ -210,9 +210,12 @@ Frontend recept **nerozebírá**. Zobrazí jen pole `name` jako nadpis a celý r
 |---|---|---|
 | `duration_ms` | `int` | délka běhu od `run_started` po `summary` |
 | `llm_calls` | `int` | počet volání LLM |
+| `cost_usd` | `float \| null` | součet platných nezáporných `usage.cost` v USD z odpovědí LLM včetně opakování; `null`, pokud žádná odpověď cenu nevrací |
 | `tokens_total` | `int \| null` | součet tokenů; `null`, pokud ho poskytovatel nevrací |
 | `skills_built` | `int` | počet kandidátů vzniklých v běhu |
 | `skills_reused` | `int` | počet dovedností použitých z registru |
+
+Pole `cost_usd` je zpětně kompatibilní rozšíření `summary.stats`; verze kontraktu zůstává **1**. Cena zahrnuje jen hodnoty oznámené poskytovatelem, nikoli odhad z počtu tokenů ani provozní náklady relay. Pokud některé odpovědi cenu neobsahují, součet zahrnuje jen dostupné hodnoty; mock vrací `null`. Klienti mohou nové pole ignorovat. Číselná nula je platná cena a liší se od neznámé ceny `null`.
 
 ---
 

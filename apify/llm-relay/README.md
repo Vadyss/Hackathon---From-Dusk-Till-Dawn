@@ -9,7 +9,7 @@ Python HTTP Actor for Apify Standby. It listens on the platform's
   `https://openrouter.apify.actor/api/v1/chat/completions`, using the Actor's
   `APIFY_TOKEN` as a Bearer token. The upstream body, content headers and HTTP
   status are preserved; hop-by-hop headers are removed. Responses are buffered,
-  including SSE requests, and the entire upstream operation has a 120 s deadline.
+  including SSE requests, and the entire upstream operation has a 180 s deadline.
 
 Call the actual Standby URL shown in the Actor's **Endpoints** tab using
 `Authorization: Bearer <your Apify API token>`. The platform authenticates the

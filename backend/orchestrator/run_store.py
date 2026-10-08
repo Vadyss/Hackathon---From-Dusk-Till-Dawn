@@ -25,6 +25,7 @@ def now_iso() -> str:
 class RunCounters:
     llm_calls: int = 0
     tokens_total: int | None = None
+    cost_usd: float | None = None
     skills_built: int = 0
     skills_reused: int = 0
     started_monotonic: float = field(default_factory=time.monotonic)
@@ -32,6 +33,7 @@ class RunCounters:
     def snapshot(self) -> dict:
         return RunStats(duration_ms=max(0, int((time.monotonic() - self.started_monotonic) * 1000)),
                         llm_calls=self.llm_calls, tokens_total=self.tokens_total,
+                        cost_usd=self.cost_usd,
                         skills_built=self.skills_built, skills_reused=self.skills_reused).model_dump(mode="json")
 
 
