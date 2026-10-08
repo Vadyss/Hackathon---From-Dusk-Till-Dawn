@@ -6,7 +6,7 @@ app = FastAPI()
 
 @app.get("/health")
 def deploy_testing():
-    return {"status": "ok"}
+    return {"status": "ok", "contract_version": CONTRACT_VERSION}
 
 # App
 
