@@ -90,6 +90,7 @@ export function ReviewCard({ run }: { run: RunState }) {
         {mode === "idle" ? (
           <div className="space-y-2.5">
             <input
+              aria-label="Review comment (optional)"
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               disabled={pending}
@@ -120,6 +121,7 @@ export function ReviewCard({ run }: { run: RunState }) {
         ) : (
           <div className="space-y-2.5">
             <textarea
+              aria-label="Reason for rejection"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               disabled={pending}

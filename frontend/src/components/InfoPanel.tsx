@@ -31,7 +31,7 @@ export function InfoPanel({
   const candidates = candidateSkills(run).filter((c) => !skills.some((s) => s.name === c.name));
 
   return (
-    <div className="flex h-full w-[340px] flex-col border-l border-line bg-bg">
+    <div className="flex h-full w-[340px] max-w-[100vw] flex-col border-l border-line bg-bg">
       <div className="flex items-center justify-between px-4 pt-3">
         <div className="flex gap-1 rounded-lg bg-surface p-0.5 text-sm">
           {(["skills", "compare"] as const).map((t) => (

@@ -25,9 +25,20 @@ export function Thread({ run }: { run: RunState }) {
   const hasVoice = !!lastOf(run, "voice_ready");
   const [audioBroken, setAudioBroken] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const stick = useRef(true); // follow new steps unless the user scrolled up
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    const sc = endRef.current?.closest("[data-scroll]");
+    if (!sc) return;
+    const onScroll = () => {
+      stick.current = sc.scrollHeight - sc.scrollTop - sc.clientHeight < 120;
+    };
+    sc.addEventListener("scroll", onScroll, { passive: true });
+    return () => sc.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    if (stick.current) endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [run.events.length]);
 
   return (
