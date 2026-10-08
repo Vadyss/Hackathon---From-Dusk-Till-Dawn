@@ -1,68 +1,91 @@
-import Image from "next/image";
+"use client";
+
+import { useMemo, useState } from "react";
+import { ApprovalPanel } from "@/components/Approval";
+import { Composer, Conversation } from "@/components/Chat";
+import { ComparePanel } from "@/components/Compare";
+import { Header } from "@/components/Header";
+import { PhaseStepper } from "@/components/PhaseStepper";
+import { RunsList, SkillsPanel } from "@/components/Sidebar";
+import { Timeline } from "@/components/Timeline";
+import { Empty, Panel, StatusBadge } from "@/components/ui";
+import { installedSkills, isActive, runStatus, sortRuns } from "@/lib/derive";
+import { useStore } from "@/lib/useStore";
 
 export default function Home() {
+  const state = useStore();
+  const [selected, setSelected] = useState<string | null>(null);
+  const [justCreated, setJustCreated] = useState<string | null>(null);
+
+  const runs = useMemo(() => sortRuns(state.runs), [state.runs]);
+  const skills = useMemo(() => installedSkills(state.skills, state.runs), [state.skills, state.runs]);
+
+  // Vybraný běh; nový běh čeká na první událost, jinak spadne na nejnovější.
+  const waitingForNew = selected !== null && selected === justCreated && !state.runs[selected];
+  const currentId = selected && state.runs[selected] ? selected : waitingForNew ? null : (runs[0]?.run_id ?? null);
+  const run = currentId ? state.runs[currentId] : undefined;
+  const anyActive = runs.some((r) => isActive(runStatus(r)));
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
+    <div className="flex min-h-full flex-col">
+      <Header connection={state.connection} syncError={state.syncError} />
+
+      <main className="mx-auto grid w-full max-w-[1600px] flex-1 gap-4 p-4 lg:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)_380px]">
+        <aside className="space-y-4 lg:row-span-2 xl:row-span-1">
+          <RunsList
+            runs={runs}
+            selected={currentId}
+            onSelect={(id) => {
+              setSelected(id);
+              setJustCreated(null);
+            }}
+          />
+          <SkillsPanel skills={skills} run={run} />
+        </aside>
+
+        <section className="min-w-0 space-y-4">
+          <Panel title="Nový požadavek">
+            <Composer
+              blocked={anyActive}
+              onCreated={(id) => {
+                setSelected(id);
+                setJustCreated(id);
+              }}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+          </Panel>
+
+          <Panel
+            title={
+              run ? (
+                <span className="flex items-center gap-2 normal-case">
+                  <span className="font-mono tracking-normal">{run.run_id}</span>
+                </span>
+              ) : (
+                "Průběh"
+              )
+            }
+            right={run ? <StatusBadge status={runStatus(run)} /> : undefined}
           >
-            Documentation
-          </a>
-        </div>
+            {run ? (
+              <div className="space-y-5">
+                <PhaseStepper run={run} />
+                <Conversation run={run} />
+                <div className="max-h-[60vh] overflow-y-auto pr-1 pt-1">
+                  <Timeline run={run} />
+                </div>
+              </div>
+            ) : waitingForNew ? (
+              <Empty>Požadavek přijat, čekám na první událost…</Empty>
+            ) : (
+              <Empty>{state.loaded ? "Zatím žádný běh." : "Načítám historii…"}</Empty>
+            )}
+          </Panel>
+        </section>
+
+        <aside className="min-w-0 space-y-4 lg:col-start-2 xl:col-start-auto">
+          <ApprovalPanel run={run} />
+          <ComparePanel runs={runs} />
+        </aside>
       </main>
     </div>
   );
