@@ -23,7 +23,7 @@ REASONS = {
 
 async def run_pipeline(run, gk, roles, emitter, settings, voice=None):
     context = {"phase": "intake", "recipe": None}
-    token = bind_run_counters(run.stats)
+    token = bind_run_counters(run.stats, run_id=run.run_id)
 
     async def fail(reason_code, reason=None):
         if not run.events:
@@ -156,6 +156,8 @@ async def run_pipeline(run, gk, roles, emitter, settings, voice=None):
         logger.error("Běh selhal (%s).", type(exc).__name__)
         await fail("INTERNAL_ERROR")
     finally:
+        logger.info("LLM run_finished run_id=%s status=%s llm_calls=%d tokens_total=%s",
+                    run.run_id, run.status, run.stats.llm_calls, run.stats.tokens_total)
         try:
             if run.status == "running":
                 await fail("INTERNAL_ERROR")

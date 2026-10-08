@@ -18,7 +18,7 @@ async def main() -> int:
     client = make_client(settings)
     try:
         result = await client.chat("planner", 'Return only JSON {"ok":true}.', "Connection check; do not produce source code.")
-        parsed = extract_json(result.text)
+        parsed = result if isinstance(result, ParseFailure) else extract_json(result.text)
         if isinstance(parsed, ParseFailure):
             print("Poskytovatel odpověděl, ale nevrátil platný JSON.")
             return 1

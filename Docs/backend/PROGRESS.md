@@ -29,3 +29,9 @@ Pro další vývoj lze použít `BACKEND_TEST_IMAGE=frankenstein-tests:local BAC
 Opravené regresní nálezy: mutable návrhy/recepty se snapshotují před await; validation má jednorázový guard před await; promotion snapshotuje všechny ověřené artefakty před zápisy; group a `_lines` odpovídají deklarované skupině a oknu; zpětná vazba nevkládá neověřené názvy skupin; failure lessons obsahují metriky a bezpečný tvar posledního validního receptu.
 
 Dodatečná revize: audit povýšení je součástí rollback transakce, úklid po úspěšném povýšení je best effort. Neplatné UTF-8 návrhy se bezpečně odmítnou. Examiner neuchovává ani nepředává seedy, skládá pouze generované označené útoky s pevnými benigními daty; všechny použité identity jsou mezi sadami disjunktní. Testovací skript podporuje explicitní lokální image bez instalace pro případ výpadku Docker sítě; generování dat běží v Pythonu 3.12 bez sítě.
+
+## Živé LLM — 2026-10-09 (probíhá)
+
+Aktivní úkol: Apify relay, hlavní Claude Sonnet 5.5, nezávislý Examiner/fallback Deepseek V4.1 Flash. Konfigurace 8000 tokenů / lokální bezpečnostní strop 16000, timeout 180 s, běh 1500 s. Token zůstal pouze v ignorované .env. Klient a null/length/fallback/regresní testy: 124 passed. Prompty zpřesněny podle skutečných schémat. Standardní backend/sandbox Docker build prošel. Následuje smoke a skutečné HTTP běhy; evidence bude v live_runs. A/B sdílí nový svazek pouze v rámci jedné dvojice; C/E nový svazek při každém pokusu. Autorita, politika, prahy a data se nemění.
+
+Smoke skutečného relay: Claude HTTP 200, validní JSON, 44 total_tokens. Offline celá sada: 586 passed / 18.98 s (126 klient+config); jeden existující dependency warning. První A/C/E běží na projektech frankenstein-live-ab1/c1/e1, porty 13011/13012/13013. Checkpointy a run_id jsou v live_runs/a_1.json, c_1.json, e_1.json; runner opětovným spuštěním stejného --output běh obnoví.

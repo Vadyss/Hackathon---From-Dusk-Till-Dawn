@@ -22,7 +22,7 @@ class Examiner:
                 response = await self.client.chat("examiner", self.system, user + repair, context=None)
             except LlmError:
                 return ParseFailure("Zkoušeči se nepodařilo připravit generátor dat.")
-            result = extract_json(response.text)
+            result = response if isinstance(response, ParseFailure) else extract_json(response.text)
             if isinstance(result, dict):
                 code = result.get("code")
                 try:

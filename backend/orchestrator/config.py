@@ -16,15 +16,17 @@ class Settings:
     llm_provider: str = "apify"
     apify_token: str = field(default="", repr=False)
     llm_api_key: str = field(default="", repr=False)
-    llm_base_url: str = "https://openrouter.apify.actor/api/v1"
-    llm_model: str = "openrouter/auto"
-    llm_model_planner: str = "openrouter/auto"
-    llm_model_forge: str = "openrouter/auto"
-    llm_model_rule: str = "openrouter/auto"
-    llm_model_summary: str = "openrouter/auto"
-    llm_model_examiner: str = "openrouter/auto"
-    llm_timeout_s: float = 120
-    llm_max_tokens: int = 2000
+    llm_base_url: str = "https://piquant-peacoat--llm-relay.apify.actor/v1"
+    llm_model: str = "anthropic/claude-sonnet-5.5"
+    llm_model_planner: str = "anthropic/claude-sonnet-5.5"
+    llm_model_forge: str = "anthropic/claude-sonnet-5.5"
+    llm_model_rule: str = "anthropic/claude-sonnet-5.5"
+    llm_model_summary: str = "anthropic/claude-sonnet-5.5"
+    llm_model_examiner: str = "deepseek/deepseek-v4.1-flash"
+    llm_model_fallback: str = "deepseek/deepseek-v4.1-flash"
+    llm_timeout_s: float = 180
+    llm_max_tokens: int = 8000
+    llm_max_tokens_cap: int = 16000
     llm_max_retries: int = 2
     llm_max_calls_per_run: int = 25
     mock_scenario: str = ""
@@ -39,7 +41,7 @@ class Settings:
     elevenlabs_voice_id: str = ""
     elevenlabs_model_id: str = "eleven_multilingual_v2"
     examiner_enabled: bool = False
-    run_timeout_s: float = 900
+    run_timeout_s: float = 1500
     cors_origins: tuple[str, ...] = ()
     log_level: str = "INFO"
 
@@ -74,7 +76,7 @@ class Settings:
             else:
                 kwargs[name] = raw
         model = kwargs.get("llm_model", defaults.llm_model)
-        for role in ("planner", "forge", "rule", "summary", "examiner"):
+        for role in ("planner", "forge", "rule", "summary"):
             kwargs.setdefault(f"llm_model_{role}", model)
         settings = cls(**kwargs)
         if settings.llm_provider not in {"apify", "openai_compatible", "mock"}:
@@ -85,7 +87,7 @@ class Settings:
             raise ValueError("Neplatné limity LLM.")
         if any(not math.isfinite(v) or v <= 0 for v in (settings.llm_timeout_s, settings.sandbox_timeout_s, settings.run_timeout_s)):
             raise ValueError("Časové limity musí být kladné.")
-        if settings.llm_max_tokens < 1 or settings.mock_delay_ms < 0:
+        if not 1 <= settings.llm_max_tokens <= settings.llm_max_tokens_cap or settings.mock_delay_ms < 0:
             raise ValueError("Neplatné limity LLM.")
         return settings
 
