@@ -1,313 +1,169 @@
-# Testing
-
-import os
-
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-
-CORS_ORIGINS = [
-    origin.strip()
-    for origin in os.getenv(
-        "CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"
-    ).split(",")
-    if origin.strip()
-]
-
-app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=CORS_ORIGINS,
-    allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type"],
-    allow_credentials=False,
-)
-
-@app.get("/health")
-def deploy_testing():
-    return {"status": "ok", "contract_version": CONTRACT_VERSION}
-
-# App
+"""Frontend contract v1 and dependency composition for the backend."""
+from __future__ import annotations
 
 import asyncio
-import re
-import secrets
-from datetime import datetime, timezone
-from typing import Optional
+import logging
+from contextlib import asynccontextmanager
+from dataclasses import replace
 
-from fastapi import Query, Request, WebSocket, WebSocketDisconnect
-from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, Response
-from pydantic import BaseModel
-from starlette.exceptions import HTTPException as StarletteHTTPException
+from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
+
+from orchestrator.api_errors import ApiError, register_handlers
+from orchestrator.config import Settings
+from orchestrator.decisions import approve, reject
+from orchestrator.events import EventEmitter
+from orchestrator.models import ApproveBody, CreateRunBody, RejectBody
+from orchestrator.run_store import RunStore
+from orchestrator.ws import WebSocketHub
 
 CONTRACT_VERSION = 1
-RUN_ID_RE = re.compile(r"^run_[a-z0-9]{4,32}$")
-ACTIVE_STATUSES = {"running", "awaiting_approval"}
-STATUS_BY_EVENT = {
-    "run_started": "running",
-    "awaiting_approval": "awaiting_approval",
-    "rule_approved": "approved",
-    "rule_rejected": "rejected",
-    "run_failed": "failed",
-}
-FINISHED_STATUSES = {"approved", "rejected", "failed"}
-WS_SEND_TIMEOUT_S = 2.0
 
 
-def now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+def create_app(*, settings=None, gatekeeper=None, sandbox=None, roles=None, pipeline_runner=None, voice=None) -> FastAPI:
+    config = settings or Settings.from_env()
 
-class ApiError(Exception):
-    def __init__(self, status_code: int, code: str, message: str):
-        self.status_code = status_code
-        self.code = code
-        self.message = message
-
-
-def error_response(status_code: int, code: str, message: str) -> JSONResponse:
-    return JSONResponse(status_code=status_code, content={"error": {"code": code, "message": message}})
-
-
-@app.exception_handler(ApiError)
-async def api_error_handler(request: Request, exc: ApiError):
-    return error_response(exc.status_code, exc.code, exc.message)
-
-
-@app.exception_handler(RequestValidationError)
-async def validation_error_handler(request: Request, exc: RequestValidationError):
-    return error_response(400, "INVALID_REQUEST", "Invalid request body or parameter.")
-
-
-@app.exception_handler(StarletteHTTPException)
-async def http_error_handler(request: Request, exc: StarletteHTTPException):
-    if exc.status_code == 404:
-        return error_response(404, "RUN_NOT_FOUND", "The requested resource does not exist.")
-    if exc.status_code < 500:
-        return error_response(400, "INVALID_REQUEST", "Invalid request.")
-    return error_response(500, "INTERNAL_ERROR", "Unexpected backend error.")
-
-
-@app.exception_handler(Exception)
-async def internal_error_handler(request: Request, exc: Exception):
-    response = error_response(500, "INTERNAL_ERROR", "Unexpected backend error.")
-    # ServerErrorMiddleware calls this handler outside CORSMiddleware.
-    origin = request.headers.get("origin")
-    if origin is not None and origin in CORS_ORIGINS:
-        response.headers["Access-Control-Allow-Origin"] = origin
-    response.headers["Vary"] = "Origin"
-    return response
-
-
-# --- Stav v paměti ---
-
-class Run:
-    def __init__(self, run_id: str, request: str):
-        self.run_id = run_id
-        self.request = request
-        self.status = "running"
-        self.created_at = now_iso()
-        self.finished_at: Optional[str] = None
-        self.events: list[dict] = []
-        self.lock = asyncio.Lock()
-        self.awaiting_data: Optional[dict] = None  # data poslední události awaiting_approval
-        self.audio: Optional[bytes] = None
-
-    @property
-    def last_seq(self) -> int:
-        return len(self.events)
-
-    def info(self) -> dict:
-        return {
-            "run_id": self.run_id,
-            "request": self.request,
-            "status": self.status,
-            "created_at": self.created_at,
-            "finished_at": self.finished_at,
-            "last_seq": self.last_seq,
-        }
-
-
-runs: dict[str, Run] = {}
-runs_lock = asyncio.Lock()
-skills_registry: dict[str, dict] = {}  # name -> SkillInfo se stavem installed
-ws_clients: set[WebSocket] = set()
-
-
-def get_run(run_id: str) -> Run:
-    if not RUN_ID_RE.match(run_id) or run_id not in runs:
-        raise ApiError(404, "RUN_NOT_FOUND", "The run does not exist.")
-    return runs[run_id]
-
-
-def has_active_run() -> bool:
-    return any(r.status in ACTIVE_STATUSES for r in runs.values())
-
-
-# --- Události (kapitoly 9 a 15.3) ---
-
-async def broadcast(event: dict) -> None:
-    async def send(ws: WebSocket) -> None:
+    @asynccontextmanager
+    async def lifespan(app):
+        sandbox_client = sandbox
+        app.state.roles = roles
+        app.state.voice = voice
+        app.state.examiner = None
+        logging.basicConfig(level=getattr(logging, config.log_level.upper(), logging.INFO))
         try:
-            await asyncio.wait_for(ws.send_json(event), timeout=WS_SEND_TIMEOUT_S)
-        except Exception:
-            ws_clients.discard(ws)
+            if sandbox_client is None or gatekeeper is None:
+                from gatekeeper.api import Gatekeeper, SandboxClient
+
+                sandbox_client = sandbox_client or SandboxClient(config.sandbox_url, timeout_s=config.sandbox_timeout_s)
+
+                async def examine(description, log_format):
+                    return await app.state.examiner.generate(description, log_format)
+
+                app.state.gatekeeper = gatekeeper or Gatekeeper(config.gatekeeper_config(), sandbox_client,
+                                                               examine if config.examiner_enabled else None)
+            else:
+                app.state.gatekeeper = gatekeeper
+            role_config = replace(config, llm_max_calls_per_run=min(config.llm_max_calls_per_run,
+                                  getattr(app.state.gatekeeper, "max_llm_calls", config.llm_max_calls_per_run)))
+            if roles is None:
+                from orchestrator.planner import make_roles
+
+                app.state.roles = make_roles(role_config)
+            if config.examiner_enabled:
+                from examiner import Examiner
+
+                app.state.examiner = Examiner(app.state.roles.client)
+            if voice is None:
+                from orchestrator.voice import VoiceService
+
+                app.state.voice = VoiceService(config, app.state.emitter)
             try:
-                await ws.close()
+                available = await sandbox_client.health()
             except Exception:
-                pass
+                available = False
+            if not available:
+                logging.getLogger(__name__).warning("Sandbox není dostupný; běh skončí SANDBOX_ERROR.")
+            yield
+        finally:
+            for resource in (app.state.store, app.state.hub, sandbox_client, app.state.voice, app.state.roles):
+                close = getattr(resource, "close", None)
+                if close:
+                    try:
+                        await close()
+                    except Exception:
+                        logging.getLogger(__name__).exception("Nepodařilo se uzavřít zdroj backendu.")
 
-    await asyncio.gather(*(send(ws) for ws in list(ws_clients)))
+    app = FastAPI(title="Frankenstein", lifespan=lifespan, docs_url=None, redoc_url=None)
+    register_handlers(app)
+    app.state.settings = config
+    app.state.store = RunStore()
+    app.state.hub = WebSocketHub()
+    app.state.emitter = EventEmitter(app.state.hub)
+    if config.cors_origins:
+        app.add_middleware(CORSMiddleware, allow_origins=list(config.cors_origins),
+                           allow_methods=["GET", "POST"], allow_headers=["Content-Type"])
+    router = APIRouter()
 
+    @router.get("/health")
+    async def health():
+        return {"status": "ok", "contract_version": CONTRACT_VERSION}
 
-def append_event(run: Run, type_: str, phase: str, message: str, data: Optional[dict] = None) -> dict:
-    """Přidá událost do běhu. Volat pod run.lock."""
-    event = {
-        "type": type_,
-        "run_id": run.run_id,
-        "seq": run.last_seq + 1,
-        "timestamp": now_iso(),
-        "phase": phase,
-        "message": message[:200],
-        "data": data or {},
-    }
-    run.events.append(event)
-    if type_ in STATUS_BY_EVENT:
-        run.status = STATUS_BY_EVENT[type_]
-        if run.status in FINISHED_STATUSES:
-            run.finished_at = event["timestamp"]
-    if type_ == "awaiting_approval":
-        run.awaiting_data = event["data"]
-    return event
+    @router.post("/runs", status_code=202)
+    async def create_run(body: CreateRunBody):
+        text = body.request.strip()
+        if not 1 <= len(text) <= 2000:
+            raise ApiError(400, "INVALID_REQUEST", "Požadavek musí mít 1 až 2000 znaků.")
+        run = await app.state.store.create(text)
+        pipeline = pipeline_runner
+        if pipeline is None:
+            from orchestrator.pipeline import run_pipeline
 
+            pipeline = run_pipeline
+        run.task = asyncio.create_task(pipeline(run, app.state.gatekeeper, app.state.roles,
+                                                app.state.emitter, config, app.state.voice))
+        return {"run_id": run.run_id, "status": "running"}
 
-async def emit(run: Run, type_: str, phase: str, message: str, data: Optional[dict] = None) -> dict:
-    """Uloží událost pod zámkem běhu a teprve potom ji odešle přes WebSocket."""
-    async with run.lock:
-        event = append_event(run, type_, phase, message, data)
-    await broadcast(event)
-    return event
+    @router.get("/runs")
+    async def list_runs():
+        return {"runs": app.state.store.list()}
 
+    @router.get("/runs/{run_id:path}/events")
+    async def get_events(run_id: str, after_seq: str = "0"):
+        run = app.state.store.get(run_id)
+        if not after_seq.isascii() or not after_seq.isdigit():
+            raise ApiError(400, "INVALID_REQUEST", "Neplatný parametr after_seq.")
+        try:
+            number = int(after_seq)
+        except ValueError:
+            raise ApiError(400, "INVALID_REQUEST", "Neplatný parametr after_seq.") from None
+        async with run.lock:
+            return {"events": [e for e in run.events if e["seq"] > number]}
 
-async def run_pipeline(run: Run) -> None:
-    """Orchestrátor běhu. Sem patří plán, kovárna, pravidlo a ověření (kapitola 11)."""
-    await emit(run, "run_started", "intake", "Run started.", {"request": run.request})
+    @router.post("/runs/{run_id:path}/approve")
+    async def approve_run(run_id: str, body: ApproveBody | None = None):
+        run = app.state.store.get(run_id)
+        return await approve(run, body.comment if body else None, app.state.gatekeeper, app.state.emitter)
 
+    @router.post("/runs/{run_id:path}/reject")
+    async def reject_run(run_id: str, body: RejectBody):
+        run = app.state.store.get(run_id)
+        reason = body.reason.strip()
+        if not 1 <= len(reason) <= 500:
+            raise ApiError(400, "INVALID_REQUEST", "Důvod musí mít 1 až 500 znaků.")
+        return await reject(run, reason, app.state.gatekeeper, app.state.emitter)
 
-# --- Těla požadavků ---
+    @router.get("/skills")
+    async def list_skills():
+        return {"skills": [s.model_dump(mode="json") for s in app.state.gatekeeper.installed_skills()]}
 
-class CreateRunBody(BaseModel):
-    request: str
+    @router.get("/runs/{run_id:path}/audio")
+    async def get_audio(run_id: str):
+        run = app.state.store.get(run_id)
+        if run.audio is None:
+            raise ApiError(404, "AUDIO_NOT_FOUND", "Běh nemá hlasové shrnutí.")
+        return Response(run.audio, media_type="audio/mpeg")
 
+    @router.websocket("/ws")
+    async def websocket_events(ws: WebSocket):
+        origin = ws.headers.get("origin")
+        if origin is not None and origin not in config.cors_origins:
+            await ws.close(code=1008)
+            return
+        subscriber = await app.state.hub.connect(ws)
+        try:
+            while True:
+                message = await ws.receive()
+                if message["type"] == "websocket.disconnect":
+                    break
+        except WebSocketDisconnect:
+            pass
+        finally:
+            await app.state.hub.disconnect(subscriber)
 
-class ApproveBody(BaseModel):
-    comment: Optional[str] = None
-
-
-class RejectBody(BaseModel):
-    reason: str
-
-
-# --- HTTP API (kapitola 7) ---
-
-@app.post("/runs", status_code=202)
-async def create_run(body: CreateRunBody):
-    request_text = body.request.strip()
-    if not 1 <= len(request_text) <= 2000:
-        raise ApiError(400, "INVALID_REQUEST", "The request must contain 1 to 2000 characters.")
-    async with runs_lock:
-        if has_active_run():
-            raise ApiError(409, "RUN_ALREADY_ACTIVE", "The previous run has not finished yet.")
-        run_id = f"run_{secrets.token_hex(4)}"
-        while run_id in runs:
-            run_id = f"run_{secrets.token_hex(4)}"
-        run = Run(run_id, request_text)
-        runs[run_id] = run
-    asyncio.create_task(run_pipeline(run))
-    return {"run_id": run_id, "status": "running"}
-
-
-@app.get("/runs")
-async def list_runs():
-    ordered = sorted(runs.values(), key=lambda r: r.created_at, reverse=True)
-    return {"runs": [r.info() for r in ordered]}
-
-
-@app.get("/runs/{run_id}/events")
-async def get_events(run_id: str, after_seq: int = Query(0, ge=0)):
-    run = get_run(run_id)
-    async with run.lock:
-        events = [e for e in run.events if e["seq"] > after_seq]
-    return {"events": events}
-
-
-@app.post("/runs/{run_id}/approve")
-async def approve_run(run_id: str, body: ApproveBody):
-    run = get_run(run_id)
-    if body.comment is not None and len(body.comment) > 500:
-        raise ApiError(400, "INVALID_REQUEST", "The comment must contain at most 500 characters.")
-    async with run.lock:
-        if run.status != "awaiting_approval":
-            raise ApiError(409, "NOT_AWAITING_APPROVAL", "The run is not awaiting approval.")
-        data = run.awaiting_data or {}
-        events = []
-        for skill in data.get("new_skills", []):
-            installed = {**skill, "status": "installed", "created_at": now_iso()}
-            skills_registry[installed["name"]] = installed
-            events.append(append_event(
-                run, "skill_installed", "done",
-                f"Skill {installed['name']} was installed in the registry.",
-                {"skill": installed},
-            ))
-        rule_name = data.get("recipe", {}).get("name", "")
-        events.append(append_event(
-            run, "rule_approved", "done", f"Rule {rule_name} was approved.",
-            {"rule_name": rule_name, "comment": body.comment},
-        ))
-    for event in events:
-        await broadcast(event)
-    return {"status": "approved"}
+    app.include_router(router)
+    app.include_router(router, prefix="/api")
+    return app
 
 
-@app.post("/runs/{run_id}/reject")
-async def reject_run(run_id: str, body: RejectBody):
-    run = get_run(run_id)
-    if not 1 <= len(body.reason) <= 500:
-        raise ApiError(400, "INVALID_REQUEST", "The reason must contain 1 to 500 characters.")
-    async with run.lock:
-        if run.status != "awaiting_approval":
-            raise ApiError(409, "NOT_AWAITING_APPROVAL", "The run is not awaiting approval.")
-        event = append_event(run, "rule_rejected", "done", "Rule was rejected.", {"reason": body.reason})
-    await broadcast(event)
-    return {"status": "rejected"}
-
-
-@app.get("/skills")
-async def list_skills():
-    return {"skills": [skills_registry[name] for name in sorted(skills_registry)]}
-
-
-@app.get("/runs/{run_id}/audio")
-async def get_audio(run_id: str):
-    run = get_run(run_id)
-    if run.audio is None:
-        raise ApiError(404, "AUDIO_NOT_FOUND", "The run has no voice summary.")
-    return Response(content=run.audio, media_type="audio/mpeg")
-
-
-# --- WebSocket (kapitola 8) ---
-
-@app.websocket("/ws")
-async def websocket_events(ws: WebSocket):
-    origin = ws.headers.get("origin")
-    if origin is not None and origin not in CORS_ORIGINS:
-        await ws.close(code=1008)
-        return
-    await ws.accept()
-    ws_clients.add(ws)
-    try:
-        while True:
-            await ws.receive_text()  # frontend nic neposílá; čteme jen kvůli detekci odpojení
-    except WebSocketDisconnect:
-        pass
-    finally:
-        ws_clients.discard(ws)
+app = create_app()

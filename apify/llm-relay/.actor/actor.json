@@ -1,0 +1,11 @@
+{
+  "actorSpecification": 1,
+  "name": "llm-relay",
+  "title": "LLM relay",
+  "description": "Opaque chat completions relay to the Apify OpenRouter endpoint.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "usesStandbyMode": true,
+  "dockerfile": "../Dockerfile",
+  "readme": "../README.md"
+}

@@ -18,10 +18,58 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Install sandbox test dependencies
+        run: pip install -r ../sandbox/requirements.txt
       - run: python -m pytest
+      - name: Relay tests (offline)
+        run: |
+          pip install -r ../apify/llm-relay/requirements.txt -r ../apify/llm-relay/requirements-dev.txt
+          python -m pytest ../apify/llm-relay/tests
+
+  integration:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install smoke client
+        run: pip install -r backend/requirements.txt
+      - name: Start isolated mock backend and sandbox
+        run: docker compose -p frankenstein-ci -f docker-compose.yml -f docker-compose.demo.yml up --build -d --wait backend sandbox
+      - name: Build frontend and start isolated nginx
+        run: |
+          docker build -t frankenstein-ci-frontend ./frontend
+          docker run -d --name frankenstein-ci-proxy --network frankenstein-ci_default -p 127.0.0.1:13000:8080 frankenstein-ci-frontend
+      - name: Frontend health and direct backend HTTP/WebSocket smoke
+        run: |
+          curl --fail --retry 10 --retry-delay 2 --retry-all-errors http://localhost:13000/
+          curl --fail http://localhost:13000/api/health
+          curl --fail --retry 10 --retry-delay 2 --retry-all-errors http://127.0.0.1:8000/health
+          python backend/scripts/smoke_e2e.py --base http://127.0.0.1:8000
+      - name: Isolated sandbox security checks
+        run: |
+          if docker compose -p frankenstein-ci -f docker-compose.yml -f docker-compose.demo.yml exec -T sandbox printenv APIFY_TOKEN > /dev/null; then
+            echo "FAIL: test sandbox has API key"; exit 1
+          fi
+          if docker compose -p frankenstein-ci -f docker-compose.yml -f docker-compose.demo.yml exec -T sandbox python -c "import urllib.request; urllib.request.urlopen('http://1.1.1.1', timeout=5)" > /dev/null 2>&1; then
+            echo "FAIL: test sandbox has internet access"; exit 1
+          fi
+          if docker compose -p frankenstein-ci -f docker-compose.yml -f docker-compose.demo.yml exec -T sandbox touch /app/test > /dev/null 2>&1; then
+            echo "FAIL: test sandbox filesystem is writable"; exit 1
+          fi
+      - name: Integration diagnostics
+        if: failure()
+        run: docker compose -p frankenstein-ci -f docker-compose.yml -f docker-compose.demo.yml logs --tail 200 backend sandbox
+      - name: Remove isolated test containers
+        if: always()
+        run: |
+          docker rm -f frankenstein-ci-proxy || true
+          docker compose -p frankenstein-ci -f docker-compose.yml -f docker-compose.demo.yml down
 
   deploy:
-    needs: test
+    needs: [test, integration]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: [self-hosted, macOS, ARM64]
     steps:
@@ -31,6 +79,7 @@ jobs:
         run: docker compose up --build -d
         env:
           APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           NEXT_PUBLIC_API_BASE: ${{ vars.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8000' }}
           CORS_ORIGINS: ${{ vars.CORS_ORIGINS || 'http://localhost:3000,http://127.0.0.1:3000' }}
           BACKEND_BIND_HOST: ${{ vars.BACKEND_BIND_HOST || '127.0.0.1' }}

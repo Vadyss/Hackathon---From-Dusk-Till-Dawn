@@ -50,7 +50,7 @@ def test_unexpected_error_keeps_cors_policy(client, origin):
 
     assert response.status_code == 500
     assert response.json() == {
-        "error": {"code": "INTERNAL_ERROR", "message": "Unexpected backend error."}
+        "error": {"code": "INTERNAL_ERROR", "message": "Neočekávaná chyba backendu."}
     }
     assert response.headers["Vary"] == "Origin"
     assert "Access-Control-Allow-Credentials" not in response.headers
