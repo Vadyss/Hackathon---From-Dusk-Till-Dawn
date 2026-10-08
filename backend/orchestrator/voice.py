@@ -53,7 +53,7 @@ class VoiceService:
                 async with run.lock:
                     run.audio = bytes(audio)
                 await self.emitter.emit(run, "voice_ready", "approval",
-                                        {"audio_url": f"/api/runs/{run.run_id}/audio"})
+                                        {"audio_url": f"/runs/{run.run_id}/audio"})
         except Exception as exc:
             # Remote bodies and exception messages can include secrets. Log
             # only the exception class, never headers, response text or repr.

@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "mock": "node ../mock/server.mjs"
+    "test": "node --test tests/request-context.test.mjs"
   },
   "dependencies": {
     "next": "16.3.8",

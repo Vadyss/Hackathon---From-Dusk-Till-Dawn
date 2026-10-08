@@ -1,83 +1,100 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { STATUS_LABEL } from "@/lib/derive";
 import type { RunStatus } from "@/lib/types";
+import { IconCheck, IconCopy } from "./icons";
 
-export function Panel({
-  title,
-  right,
-  children,
-  className = "",
-}: {
-  title: ReactNode;
-  right?: ReactNode;
-  children: ReactNode;
-  className?: string;
-}) {
+const STATUS_DOT: Record<RunStatus, string> = {
+  running: "bg-info animate-pulse",
+  awaiting_approval: "bg-warn",
+  approved: "bg-ok",
+  rejected: "bg-subtle",
+  failed: "bg-bad",
+};
+
+export function StatusDot({ status }: { status: RunStatus | null }) {
+  return <span className={`inline-block size-1.5 shrink-0 rounded-full ${status ? STATUS_DOT[status] : "bg-subtle"}`} />;
+}
+
+export function StatusPill({ status }: { status: RunStatus | null }) {
   return (
-    <section className={`rounded-xl border border-line bg-panel ${className}`}>
-      <header className="flex items-center justify-between gap-2 border-b border-line px-4 py-2.5">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">{title}</h2>
-        {right}
-      </header>
-      <div className="p-4">{children}</div>
-    </section>
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-line px-2 py-0.5 text-xs text-muted">
+      <StatusDot status={status} />
+      {status ? STATUS_LABEL[status] : "Starting"}
+    </span>
   );
 }
 
-type Tone = "neutral" | "ok" | "bad" | "warn" | "info" | "accent";
-
-const TONE: Record<Tone, string> = {
-  neutral: "border-line text-muted",
-  ok: "border-ok/40 bg-ok/10 text-ok",
-  bad: "border-bad/40 bg-bad/10 text-bad",
-  warn: "border-warn/40 bg-warn/10 text-warn",
-  info: "border-info/40 bg-info/10 text-info",
-  accent: "border-accent/40 bg-accent/10 text-accent",
-};
-
-export function Badge({ tone = "neutral", children }: { tone?: Tone; children: ReactNode }) {
+export function Tag({ children, mono }: { children: ReactNode; mono?: boolean }) {
   return (
     <span
-      className={`inline-flex shrink-0 items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-medium leading-none ${TONE[tone]}`}
+      className={`inline-flex items-center rounded-md bg-surface px-1.5 py-0.5 text-[11px] leading-4 text-muted ${
+        mono ? "font-mono" : ""
+      }`}
     >
       {children}
     </span>
   );
 }
 
-const STATUS_TONE: Record<RunStatus, Tone> = {
-  running: "info",
-  awaiting_approval: "warn",
-  approved: "ok",
-  rejected: "neutral",
-  failed: "bad",
-};
-
-export function StatusBadge({ status }: { status: RunStatus | null }) {
-  if (!status) return <Badge>Čeká na události</Badge>;
-  return (
-    <Badge tone={STATUS_TONE[status]}>
-      {status === "running" && <span className="size-1.5 animate-pulse rounded-full bg-current" />}
-      {STATUS_LABEL[status]}
-    </Badge>
-  );
-}
-
-// Formátovaný JSON jako prostý text (kapitola 5.2).
-export function JsonBlock({ value }: { value: unknown }) {
+// Pretty-printed JSON rendered as plain text (contract 5.2).
+export function CodeBlock({ value, label = "json" }: { value: unknown; label?: string }) {
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState("");
+  const codeRef = useRef<HTMLPreElement>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
   let text: string;
   try {
-    text = JSON.stringify(value, null, 2);
+    text = JSON.stringify(value, null, 2) ?? "null";
   } catch {
     text = String(value);
   }
+  async function copy() {
+    setError("");
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setError("Clipboard unavailable. The code is selected; use your copy shortcut.");
+      if (codeRef.current) {
+        codeRef.current.focus();
+        const range = document.createRange();
+        range.selectNodeContents(codeRef.current);
+        window.getSelection()?.removeAllRanges();
+        window.getSelection()?.addRange(range);
+      }
+    }
+  }
+  function download() {
+    const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${label.replace(/\.json$/i, "").replace(/[^a-z0-9_-]/gi, "_").slice(0, 80) || "rule"}.json`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
   return (
-    <pre className="max-h-80 overflow-auto rounded-lg border border-line bg-bg p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all text-fg/90">
-      {text}
-    </pre>
+    <div className="code-block overflow-hidden rounded-xl border border-line">
+      <div className="flex items-center justify-between bg-surface px-3 py-1.5 text-xs text-muted">
+        <span className="font-mono">{label}</span>
+        <div className="code-tools"><button type="button" onClick={copy} className="inline-flex items-center gap-1 rounded px-1 hover:text-fg">
+          {copied ? <IconCheck className="size-3.5" /> : <IconCopy className="size-3.5" />}
+          {copied ? "Copied" : "Copy"}
+        </button>
+        <button type="button" onClick={download} className="rounded px-1 hover:text-fg">Download JSON</button></div>
+      </div>
+      <pre ref={codeRef} tabIndex={0} className="max-h-80 overflow-auto bg-bg p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all">
+        {text}
+      </pre>
+      {error && <p role="status" className="copy-feedback px-3 pb-3">{error}</p>}
+    </div>
   );
 }
 
-export function Empty({ children }: { children: ReactNode }) {
-  return <p className="text-sm text-muted">{children}</p>;
+export function SectionLabel({ children }: { children: ReactNode }) {
+  return <div className="mb-2 text-xs font-medium text-subtle">{children}</div>;
 }

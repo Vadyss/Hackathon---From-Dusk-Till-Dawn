@@ -43,7 +43,7 @@ class Settings:
     elevenlabs_model_id: str = "eleven_multilingual_v2"
     examiner_enabled: bool = False
     run_timeout_s: float = 1500
-    cors_origins: tuple[str, ...] = ()
+    cors_origins: tuple[str, ...] = ("http://localhost:3000", "http://127.0.0.1:3000")
     log_level: str = "INFO"
 
     @classmethod
@@ -59,7 +59,7 @@ class Settings:
             if raw is None:
                 continue
             if raw == "" and name not in {"apify_token", "llm_api_key", "elevenlabs_api_key",
-                                          "elevenlabs_voice_id", "cors_origins", "mock_scenario"}:
+                                          "elevenlabs_voice_id", "mock_scenario"}:
                 continue
             default = getattr(defaults, name)
             if isinstance(default, bool):

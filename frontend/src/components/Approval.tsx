@@ -1,48 +1,30 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { api, ApiError } from "@/lib/api";
 import { dataOf, FAIL_LABEL, lastOf, runStatus } from "@/lib/derive";
 import type { RunState } from "@/lib/engine";
+import { IconCheck, IconX } from "./icons";
 import { MetricsCard } from "./Metrics";
-import { Badge, Empty, JsonBlock, Panel } from "./ui";
+import { CodeBlock, SectionLabel, Tag } from "./ui";
 
 const MAX_COMMENT = 500;
 const MAX_REASON = 500;
 
-export function ApprovalPanel({ run }: { run: RunState | undefined }) {
-  // key = run_id, aby se rozpracovaný stav nepřenášel mezi běhy
-  return (
-    <Panel title="Schválení">
-      {run ? <ApprovalBody key={run.run_id} run={run} /> : <Empty>Vyber běh.</Empty>}
-    </Panel>
-  );
-}
-
-function ApprovalBody({ run }: { run: RunState }) {
-  const status = runStatus(run);
-
-  if (status === "approved" || status === "rejected" || status === "failed") {
-    return <Outcome run={run} />;
-  }
-  if (status !== "awaiting_approval") {
-    return <Empty>Panel se odemkne, až pravidlo projde ověřovací sadou.</Empty>;
-  }
-  return <Decision run={run} />;
-}
-
-function Decision({ run }: { run: RunState }) {
+// Review card shown inline in the conversation while the run awaits approval.
+export function ReviewCard({ run }: { run: RunState }) {
+  const [mode, setMode] = useState<"idle" | "reject">("idle");
   const [comment, setComment] = useState("");
   const [reason, setReason] = useState("");
-  const [mode, setMode] = useState<"approve" | "reject">("approve");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const lock = useRef(false); // synchronní pojistka proti dvojkliku
+  const lock = useRef(false); // synchronous guard against double clicks
 
   const ev = lastOf(run, "awaiting_approval");
-  if (!ev) return null;
+  if (!ev || runStatus(run) !== "awaiting_approval") return null;
   const d = dataOf(ev, "awaiting_approval");
   const newSkills = Array.isArray(d.new_skills) ? d.new_skills : [];
+  const ruleName = typeof d.recipe?.name === "string" ? d.recipe.name : "rule";
 
   async function send(kind: "approve" | "reject") {
     if (lock.current) return;
@@ -52,175 +34,197 @@ function Decision({ run }: { run: RunState }) {
     try {
       if (kind === "approve") await api.approve(run.run_id, comment.trim());
       else await api.reject(run.run_id, reason.trim());
-      // Tlačítka zůstanou zamčená, dokud nepřijde koncová událost (ApprovalBody se přepne).
+      // Stay locked until the terminal event arrives and this card unmounts.
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Požadavek se nepodařilo odeslat.");
+      setError(e instanceof ApiError ? e.message : "Couldn't send the decision.");
       lock.current = false;
       setPending(false);
     }
   }
 
   const reasonOk = reason.trim().length >= 1 && reason.trim().length <= MAX_REASON;
-  const commentOk = comment.trim().length <= MAX_COMMENT;
 
   return (
-    <div className="space-y-4">
-      <div>
-        <div className="mb-1 text-[11px] tracking-wider text-muted uppercase">Pravidlo</div>
-        <h3 className="mb-2 font-mono text-base font-semibold break-all text-fg">
-          {typeof d.recipe?.name === "string" ? d.recipe.name : "—"}
-        </h3>
-        <JsonBlock value={d.recipe} />
-      </div>
-
-      <div className="grid gap-2">
-        <MetricsCard title="Ladicí sada" metrics={d.metrics_tuning} />
-        <MetricsCard title="Ověřovací sada" metrics={d.metrics_validation} />
-      </div>
-
-      <div>
-        <div className="mb-1.5 text-[11px] tracking-wider text-muted uppercase">
-          Nové dovednosti k instalaci ({newSkills.length})
+    <div className="overflow-hidden rounded-2xl border border-line">
+      <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
+        <div className="min-w-0">
+          <div className="text-xs text-subtle">Review detection rule</div>
+          <div className="truncate font-mono text-sm font-medium">{ruleName}</div>
         </div>
-        {newSkills.length === 0 ? (
-          <Empty>Agent nic nového nepostavil, jen znovu použil registr.</Empty>
-        ) : (
-          <ul className="space-y-1.5">
-            {newSkills.map((s, i) => (
-              <li key={`${s?.name}-${i}`} className="rounded-lg border border-warn/30 bg-warn/5 p-2">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="font-mono text-sm break-all text-fg">{String(s?.name ?? "")}</span>
-                  <Badge tone="warn">kandidát</Badge>
-                  <Badge>{String(s?.kind ?? "")}</Badge>
-                </div>
-                <p className="mt-1 text-xs break-words text-muted">{String(s?.description ?? "")}</p>
-              </li>
-            ))}
-          </ul>
+        <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-warn">
+          <span className="size-1.5 rounded-full bg-warn" />
+          Needs review
+        </span>
+      </div>
+
+      <div className="space-y-5 p-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <MetricsCard title="Tuning set" hint="Used while drafting" metrics={d.metrics_tuning} />
+          <MetricsCard title="Validation set" hint="Never seen by the agent" metrics={d.metrics_validation} />
+        </div>
+
+        <div>
+          <SectionLabel>Recipe</SectionLabel>
+          <CodeBlock value={d.recipe} label={`${ruleName}.json`} />
+        </div>
+
+        {newSkills.length > 0 && (
+          <div>
+            <SectionLabel>New skills that will be installed</SectionLabel>
+            <ul className="divide-y divide-line rounded-xl border border-line">
+              {newSkills.map((s, i) => (
+                <li key={`${s?.name}-${i}`} className="px-3.5 py-2.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-sm">{String(s?.name ?? "")}</span>
+                    <Tag>{String(s?.kind ?? "")}</Tag>
+                  </div>
+                  <p className="mt-0.5 text-sm text-muted">{String(s?.description ?? "")}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
       </div>
 
-      <div className="rounded-lg border border-line bg-bg/60 p-3">
-        <div className="mb-2 grid grid-cols-2 gap-1 rounded-lg bg-panel p-1 text-xs font-medium">
-          {(["approve", "reject"] as const).map((m) => (
-            <button
-              key={m}
-              type="button"
-              disabled={pending}
-              onClick={() => setMode(m)}
-              className={`rounded-md py-1.5 transition ${
-                mode === m ? (m === "approve" ? "bg-ok/20 text-ok" : "bg-bad/20 text-bad") : "text-muted"
-              }`}
-            >
-              {m === "approve" ? "Schválit" : "Zamítnout"}
-            </button>
-          ))}
-        </div>
-
-        {mode === "approve" ? (
-          <>
-            <textarea
+      <div className="border-t border-line bg-surface/50 px-4 py-3">
+        {mode === "idle" ? (
+          <div className="space-y-2.5">
+            <input
+              aria-label="Review comment (optional)"
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               disabled={pending}
-              rows={2}
               maxLength={MAX_COMMENT}
-              placeholder="Komentář (nepovinný)"
-              className="block w-full resize-y rounded-md border border-line bg-bg px-2.5 py-2 text-sm text-fg placeholder:text-muted/70 focus:border-accent/60 focus:outline-none disabled:opacity-60"
+              placeholder="Add a comment (optional)"
+              className="w-full rounded-lg border border-line bg-bg px-3 py-2 text-sm placeholder:text-subtle focus:border-subtle focus:outline-none disabled:opacity-60"
             />
-            <button
-              type="button"
-              onClick={() => void send("approve")}
-              disabled={pending || !commentOk}
-              className="mt-2 w-full rounded-lg bg-ok px-3 py-2 text-sm font-semibold text-bg transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {pending ? "Odesláno, čekám na potvrzení…" : "Schválit a nasadit"}
-            </button>
-          </>
+            <div className="flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => setMode("reject")}
+                className="rounded-full border border-line px-4 py-1.5 text-sm font-medium hover:bg-hover disabled:opacity-50"
+              >
+                Reject
+              </button>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => void send("approve")}
+                className="inline-flex items-center gap-1.5 rounded-full bg-fg px-4 py-1.5 text-sm font-medium text-bg hover:opacity-85 disabled:opacity-50"
+              >
+                <IconCheck className="size-4" />
+                {pending ? "Approving…" : "Approve and install"}
+              </button>
+            </div>
+          </div>
         ) : (
-          <>
+          <div className="space-y-2.5">
             <textarea
+              aria-label="Reason for rejection"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               disabled={pending}
               rows={2}
               maxLength={MAX_REASON}
-              placeholder="Důvod zamítnutí (povinný)"
-              className="block w-full resize-y rounded-md border border-line bg-bg px-2.5 py-2 text-sm text-fg placeholder:text-muted/70 focus:border-bad/60 focus:outline-none disabled:opacity-60"
+              autoFocus
+              placeholder="Why are you rejecting this rule? (required)"
+              className="block w-full resize-none rounded-lg border border-line bg-bg px-3 py-2 text-sm placeholder:text-subtle focus:border-subtle focus:outline-none disabled:opacity-60"
             />
-            <button
-              type="button"
-              onClick={() => void send("reject")}
-              disabled={pending || !reasonOk}
-              className="mt-2 w-full rounded-lg bg-bad px-3 py-2 text-sm font-semibold text-bg transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {pending ? "Odesláno, čekám na potvrzení…" : "Zamítnout"}
-            </button>
-          </>
+            <div className="flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => setMode("idle")}
+                className="rounded-full px-4 py-1.5 text-sm font-medium text-muted hover:bg-hover disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={pending || !reasonOk}
+                onClick={() => void send("reject")}
+                className="inline-flex items-center gap-1.5 rounded-full bg-bad px-4 py-1.5 text-sm font-medium text-white hover:opacity-85 disabled:opacity-50"
+              >
+                <IconX className="size-4" />
+                {pending ? "Rejecting…" : "Reject rule"}
+              </button>
+            </div>
+          </div>
         )}
         {error && (
-          <p role="alert" className="mt-2 text-sm break-words text-bad">
+          <p role="alert" className="mt-2 text-sm text-bad">
             {error}
           </p>
         )}
-        <p className="mt-2 text-[11px] text-muted">
-          Tlačítko je jen žádost. O schválení rozhoduje backend.
-        </p>
       </div>
     </div>
   );
 }
 
-function Outcome({ run }: { run: RunState }) {
+// Final outcome line shown at the end of a finished run.
+export function Outcome({ run }: { run: RunState }) {
   const approved = lastOf(run, "rule_approved");
   const rejected = lastOf(run, "rule_rejected");
   const failed = lastOf(run, "run_failed");
-  const installed = run.events.filter((e) => e.type === "skill_installed");
 
   if (approved) {
     const d = dataOf(approved, "rule_approved");
+    const installed = run.events
+      .filter((e) => e.type === "skill_installed")
+      .map((e) => String(dataOf(e, "skill_installed").skill?.name ?? ""));
     return (
-      <div className="space-y-2">
-        <Badge tone="ok">✓ Pravidlo schváleno</Badge>
-        <p className="font-mono text-sm break-all text-fg">{String(d.rule_name ?? "")}</p>
-        {typeof d.comment === "string" && d.comment && (
-          <p className="text-sm break-words text-muted">„{d.comment}“</p>
-        )}
-        {installed.length > 0 && (
-          <p className="text-xs text-muted">
-            Do registru přibylo:{" "}
-            {installed.map((e, i) => (
-              <span key={e.seq} className="font-mono text-ok">
-                {i > 0 && ", "}
-                {String(dataOf(e, "skill_installed").skill?.name ?? "")}
-              </span>
-            ))}
-          </p>
-        )}
-      </div>
+      <Callout tone="ok" title={`Rule ${String(d.rule_name ?? "")} is approved and active`}>
+        {installed.length > 0 && <p>Added to the skill registry: {installed.join(", ")}</p>}
+        {typeof d.comment === "string" && d.comment && <p>Comment: {d.comment}</p>}
+      </Callout>
     );
   }
   if (rejected) {
     const d = dataOf(rejected, "rule_rejected");
     return (
-      <div className="space-y-2">
-        <Badge>Pravidlo zamítnuto</Badge>
-        <p className="text-sm break-words text-muted">{String(d.reason ?? "")}</p>
-      </div>
+      <Callout tone="neutral" title="Rule rejected">
+        <p>{String(d.reason ?? "")}</p>
+      </Callout>
     );
   }
   if (failed) {
     const d = dataOf(failed, "run_failed");
     const code = String(d.reason_code ?? "");
     return (
-      <div className="space-y-2">
-        <Badge tone="bad">
-          ✗ Běh selhal · <span className="font-mono">{code}</span>
-        </Badge>
-        {FAIL_LABEL[code] && <p className="text-sm font-medium text-fg">{FAIL_LABEL[code]}</p>}
-        <p className="text-sm break-words text-muted">{String(d.reason ?? "")}</p>
-      </div>
+      <Callout tone="bad" title={FAIL_LABEL[code] ?? "Run failed"}>
+        <p>{String(d.reason ?? "")}</p>
+        <p className="font-mono text-xs text-subtle">{code}</p>
+      </Callout>
     );
   }
   return null;
+}
+
+function Callout({
+  tone,
+  title,
+  children,
+}: {
+  tone: "ok" | "bad" | "neutral";
+  title: string;
+  children?: ReactNode;
+}) {
+  const icon =
+    tone === "ok" ? (
+      <IconCheck className="size-4 text-ok" />
+    ) : tone === "bad" ? (
+      <IconX className="size-4 text-bad" />
+    ) : (
+      <IconX className="size-4 text-subtle" />
+    );
+  return (
+    <div className="flex gap-3 rounded-2xl border border-line px-4 py-3">
+      <span className="mt-0.5 shrink-0">{icon}</span>
+      <div className="min-w-0 space-y-1 text-sm">
+        <div className="font-medium">{title}</div>
+        <div className="space-y-1 text-muted">{children}</div>
+      </div>
+    </div>
+  );
 }

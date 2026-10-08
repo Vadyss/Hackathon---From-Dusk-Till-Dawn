@@ -1,12 +1,12 @@
-// Jediné úložiště stavu podle kapitoly 12. Všechny panely čtou odsud.
-// Stav běhu se odvozuje jen z událostí (viz derive.ts), ne z odpovědí HTTP.
+// Single state store per contract chapter 12. Every panel reads from here.
+// Run status is derived from events only (see derive.ts), never from HTTP responses.
 import { api, ApiError, wsUrl } from "./api";
 import type { RunEvent, SkillInfo } from "./types";
 
 export interface RunState {
   run_id: string;
-  events: RunEvent[]; // seřazené podle seq, bez duplicit
-  last_seq: number; // nejvyšší seq, do kterého nechybí žádná událost
+  events: RunEvent[]; // sorted by seq, no duplicates
+  last_seq: number; // highest seq with no gaps before it
   created_at: string | null;
 }
 
@@ -14,7 +14,7 @@ export type Connection = "connecting" | "open" | "reconnecting";
 
 export interface StoreState {
   runs: Record<string, RunState>;
-  skills: SkillInfo[]; // výchozí seznam z GET /api/skills
+  skills: SkillInfo[]; // base list from GET /skills
   connection: Connection;
   loaded: boolean;
   syncError: string | null;
@@ -66,14 +66,14 @@ export class Engine {
   private listeners = new Set<() => void>();
   private ws: WebSocket | null = null;
   private stopped = true;
-  private ready = false; // historie stažená, vyrovnávací paměť vyprázdněná
+  private ready = false; // history loaded, buffer flushed
   private buffer: RunEvent[] = [];
   private attempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private syncing = false;
   private syncAgain = false;
-  private fetching = new Map<string, boolean>(); // run_id -> je potřeba stáhnout znovu
+  private fetching = new Map<string, boolean>(); // run_id -> needs another fetch
 
   subscribe = (fn: () => void) => {
     this.listeners.add(fn);
@@ -90,7 +90,7 @@ export class Engine {
   start() {
     if (!this.stopped) return;
     this.stopped = false;
-    // Kapitola 12.2: nejdřív WebSocket, potom historie.
+    // Contract 12.2: open the WebSocket first, then load history.
     this.connect();
     void this.resync();
   }
@@ -122,7 +122,7 @@ export class Engine {
       if (this.ws !== ws) return;
       this.attempt = 0;
       this.set({ connection: "open" });
-      // Kapitola 12.4: po znovupřipojení dotáhni, co se zmeškalo.
+      // Contract 12.4: after reconnecting, fetch what was missed.
       if (isReconnect) void this.resync();
     };
     ws.onmessage = (msg) => {
@@ -153,7 +153,7 @@ export class Engine {
     this.reconnectTimer = setTimeout(() => this.connect(), delay);
   }
 
-  // ---------- Synchronizace přes HTTP ----------
+  // ---------- HTTP sync ----------
 
   async resync(): Promise<void> {
     if (this.stopped) return;
@@ -184,7 +184,7 @@ export class Engine {
         syncError: null,
       });
     } catch (e) {
-      this.set({ syncError: e instanceof ApiError ? e.message : "Synchronizace selhala." });
+      this.set({ syncError: e instanceof ApiError ? e.message : "Sync with the backend failed." });
       if (this.retryTimer) clearTimeout(this.retryTimer);
       this.retryTimer = setTimeout(() => void this.resync(), 3000);
     } finally {
@@ -211,7 +211,7 @@ export class Engine {
           this.merge(runId, (Array.isArray(events) ? events : []).filter(isEvent).map(normalize));
         } catch (e) {
           if (e instanceof ApiError && e.status === 404 && e.code === "RUN_NOT_FOUND") {
-            // Backend se restartoval – běh odeber z pohledu.
+            // Backend restarted: drop the run from view.
             this.removeRun(runId);
             return;
           }
@@ -225,7 +225,7 @@ export class Engine {
     }
   }
 
-  // ---------- Úložiště ----------
+  // ---------- Store ----------
 
   private ensureRun(runId: string, createdAt: string | null) {
     const existing = this.state.runs[runId];
@@ -276,7 +276,7 @@ export class Engine {
     });
   }
 
-  // Kapitola 12.3: zpracování jedné příchozí události.
+  // Contract 12.3: handle one incoming event.
   private ingest(ev: RunEvent) {
     const run = this.state.runs[ev.run_id];
     if (run?.events.some((e) => e.seq === ev.seq)) return;
@@ -285,7 +285,7 @@ export class Engine {
     const updated = this.state.runs[ev.run_id];
     if (updated && updated.events.some((e) => e.seq > updated.last_seq)) {
       void this.fetchMissing(ev.run_id).catch(() => {
-        /* zkusí se znovu při další synchronizaci */
+        /* retried on the next sync */
       });
     }
   }

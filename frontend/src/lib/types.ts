@@ -1,5 +1,5 @@
-// Datové typy podle docs/kontrakt.md (kapitoly 6, 9, 10).
-// Pole označená [nedůvěryhodné] se vždy vykreslují jen jako prostý text.
+// Data types per docs/kontrakt.md (chapters 6, 9, 10).
+// Fields marked [untrusted] are always rendered as plain text.
 
 export const CONTRACT_VERSION = 1;
 
@@ -11,7 +11,7 @@ export interface SkillInfo {
   name: string;
   version: number;
   kind: SkillKind | string;
-  description: string; // u origin=agent [nedůvěryhodné]
+  description: string; // [untrusted] when origin=agent
   origin: SkillOrigin | string;
   status: SkillStatus | string;
   created_by_run: string | null;
@@ -28,7 +28,7 @@ export interface Metrics {
   passed: boolean;
 }
 
-// Recept frontend nerozebírá – jen `name` a celý JSON. [nedůvěryhodné]
+// The frontend does not parse recipes: only `name` and the full JSON. [untrusted]
 export type Recipe = { name: string } & Record<string, unknown>;
 
 export type RunStatus =
@@ -40,7 +40,7 @@ export type RunStatus =
 
 export interface RunInfo {
   run_id: string;
-  request: string; // [nedůvěryhodné]
+  request: string; // [untrusted]
   status: RunStatus | string;
   created_at: string;
   finished_at: string | null;
@@ -80,11 +80,11 @@ export interface RunEvent {
   seq: number;
   timestamp: string;
   phase: Phase | string;
-  message: string; // [nedůvěryhodné]
+  message: string; // [untrusted]
   data: Record<string, unknown>;
 }
 
-// Obsah `data` jednotlivých událostí (kapitola 10).
+// `data` payload of each event type (chapter 10).
 export interface EventDataMap {
   run_started: { request: string };
   plan_ready: { steps: string[]; skills_needed: string[] };

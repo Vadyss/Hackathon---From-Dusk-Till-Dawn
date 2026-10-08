@@ -143,7 +143,7 @@ class SummaryData(ContractModel):
 
 
 class VoiceReadyData(ContractModel):
-    audio_url: str = Field(pattern=r"^/api/runs/run_[a-z0-9]{4,32}/audio$")
+    audio_url: str = Field(pattern=r"^/(?:api/)?runs/run_[a-z0-9]{4,32}/audio$")
 
 
 class AwaitingApprovalData(RecipeData):

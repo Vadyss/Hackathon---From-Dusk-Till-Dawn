@@ -21,6 +21,10 @@ jobs:
       - name: Install sandbox test dependencies
         run: pip install -r ../sandbox/requirements.txt
       - run: python -m pytest
+      - name: Relay tests (offline)
+        run: |
+          pip install -r ../apify/llm-relay/requirements.txt -r ../apify/llm-relay/requirements-dev.txt
+          python -m pytest ../apify/llm-relay/tests
 
   integration:
     needs: test
@@ -34,14 +38,16 @@ jobs:
         run: pip install -r backend/requirements.txt
       - name: Start isolated mock backend and sandbox
         run: docker compose -p frankenstein-ci -f docker-compose.yml -f docker-compose.demo.yml up --build -d --wait backend sandbox
-      - name: Build unchanged frontend and start isolated nginx
+      - name: Build frontend and start isolated nginx
         run: |
           docker build -t frankenstein-ci-frontend ./frontend
           docker run -d --name frankenstein-ci-proxy --network frankenstein-ci_default -p 127.0.0.1:13000:8080 frankenstein-ci-frontend
-      - name: Real HTTP and WebSocket smoke through nginx
+      - name: Frontend health and direct backend HTTP/WebSocket smoke
         run: |
-          curl --fail --retry 10 --retry-delay 2 --retry-all-errors http://localhost:13000/api/health
-          python backend/scripts/smoke_e2e.py --base http://localhost:13000
+          curl --fail --retry 10 --retry-delay 2 --retry-all-errors http://localhost:13000/
+          curl --fail http://localhost:13000/api/health
+          curl --fail --retry 10 --retry-delay 2 --retry-all-errors http://127.0.0.1:8000/health
+          python backend/scripts/smoke_e2e.py --base http://127.0.0.1:8000
       - name: Isolated sandbox security checks
         run: |
           if docker compose -p frankenstein-ci -f docker-compose.yml -f docker-compose.demo.yml exec -T sandbox printenv APIFY_TOKEN > /dev/null; then
@@ -74,9 +80,12 @@ jobs:
         env:
           APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          NEXT_PUBLIC_API_BASE: ${{ vars.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8000' }}
+          CORS_ORIGINS: ${{ vars.CORS_ORIGINS || 'http://localhost:3000,http://127.0.0.1:3000' }}
+          BACKEND_BIND_HOST: ${{ vars.BACKEND_BIND_HOST || '127.0.0.1' }}
 
       - name: Backend health check
-        run: curl --fail --retry 10 --retry-delay 3 --retry-all-errors http://localhost:3000/api/health
+        run: curl --fail --retry 10 --retry-delay 3 --retry-all-errors http://127.0.0.1:8000/health
 
       - name: Frontend health check
         run: curl --fail --retry 10 --retry-delay 3 --retry-all-errors http://localhost:3000

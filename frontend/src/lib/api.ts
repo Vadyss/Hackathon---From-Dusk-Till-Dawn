@@ -1,19 +1,16 @@
-// HTTP klient podle kapitoly 7. Volá jen adresy pod /api/.
+// HTTP client per contract chapter 7. Calls the backend directly from the browser.
 import type { RunEvent, RunInfo, SkillInfo } from "./types";
 
-// Kapitola 7.3: prázdná hodnota = relativní adresy na stejném hostiteli.
-export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE ?? "").replace(/\/+$/, "");
+export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || "http://127.0.0.1:8000").replace(/\/+$/, "");
 
 export function apiUrl(path: string): string {
-  return `${API_BASE}/api${path}`;
+  return `${API_BASE}${path}`;
 }
 
 export function wsUrl(): string {
-  if (API_BASE) {
-    return `${API_BASE.replace(/^http/, "ws")}/api/ws`;
-  }
-  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${proto}//${window.location.host}/api/ws`;
+  const url = new URL(`${API_BASE}/ws`);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  return url.toString();
 }
 
 export function audioUrl(runId: string): string {
@@ -34,25 +31,26 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;
   try {
     res = await fetch(apiUrl(path), {
+      signal: AbortSignal.timeout(15000),
       ...init,
       headers: init?.body ? { "Content-Type": "application/json" } : undefined,
       cache: "no-store",
     });
   } catch {
-    throw new ApiError(0, "NETWORK_ERROR", "Backend není dostupný.");
+    throw new ApiError(0, "NETWORK_ERROR", "Can't reach the backend.");
   }
   let body: unknown = null;
   try {
     body = await res.json();
   } catch {
-    // tělo není JSON
+    // body is not JSON
   }
   if (!res.ok) {
     const err = (body as { error?: { code?: unknown; message?: unknown } } | null)?.error;
     throw new ApiError(
       res.status,
       typeof err?.code === "string" ? err.code : "UNKNOWN",
-      typeof err?.message === "string" ? err.message : `Chyba HTTP ${res.status}.`,
+      typeof err?.message === "string" ? err.message : `Request failed (HTTP ${res.status}).`,
     );
   }
   return body as T;

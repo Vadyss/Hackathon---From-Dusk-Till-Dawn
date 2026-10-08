@@ -10,6 +10,10 @@ function getEngine(): Engine {
   return engine;
 }
 
+export function refreshStore() {
+  return getEngine().resync();
+}
+
 export function useStore() {
   const e = getEngine();
   useEffect(() => {

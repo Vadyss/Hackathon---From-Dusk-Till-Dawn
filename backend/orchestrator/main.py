@@ -146,6 +146,10 @@ def create_app(*, settings=None, gatekeeper=None, sandbox=None, roles=None, pipe
 
     @router.websocket("/ws")
     async def websocket_events(ws: WebSocket):
+        origin = ws.headers.get("origin")
+        if origin is not None and origin not in config.cors_origins:
+            await ws.close(code=1008)
+            return
         subscriber = await app.state.hub.connect(ws)
         try:
             while True:

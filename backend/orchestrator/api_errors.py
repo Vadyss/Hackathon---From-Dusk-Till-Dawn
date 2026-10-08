@@ -41,4 +41,10 @@ def register_handlers(app: FastAPI) -> None:
     @app.exception_handler(Exception)
     async def internal_error(request: Request, exc: Exception):
         logger.error("Neočekávaná chyba HTTP (%s).", type(exc).__name__)
-        return error_response(500, "INTERNAL_ERROR", "Neočekávaná chyba backendu.")
+        response = error_response(500, "INTERNAL_ERROR", "Neočekávaná chyba backendu.")
+        # ServerErrorMiddleware runs outside CORSMiddleware.
+        response.headers["Vary"] = "Origin"
+        origin = request.headers.get("origin")
+        if origin is not None and origin in app.state.settings.cors_origins:
+            response.headers["Access-Control-Allow-Origin"] = origin
+        return response

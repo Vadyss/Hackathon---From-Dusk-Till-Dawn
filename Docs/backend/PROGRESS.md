@@ -55,3 +55,8 @@ Finální konfigurace v .env i Compose: relay/v1, Claude Sonnet 5.5, Deepseek Ex
 Důkazy jsou v LLM_LIVE_TEST.md, live_runs/*_*.json a provider_metadata.json. Přesné GET events úspěšné dvojice A4/B1 jsou run_a.json/run_b.json. REPORT a PR_DESCRIPTION hotové. Dokončené testovací kontejnery lze zastavit; jejich svazky, sítě a metadata byly zachované. Poslední izolované projekty použily dočasné explicitní subnety po vyčerpání Docker poolu. Pro pokračování nevytvářejte další A/E pokusy: oba dosáhly limitu 5 a dokončily požadované dva úspěchy.
 
 Lokální práce a důkazy jsou dokončené; Adam provede push/PR a vzdálené CI. Žádný merge/push/cloudový deployment nebyl proveden. Známá omezení: vnitřní LLM opravy, 120s relay deadline, neznámý true token ceiling a původní REQUEST_REJECTED klasifikace budgetu při volitelných custom Examiner datech (Gatekeeper se neměnil). Po finálním commitu není aktivní vývojový krok.
+
+
+## Merge PR #16 — 2026-10-09
+
+Sloučen origin/main c0b833e do feat/backend-toolsmith bez rebase/push. Pět konfliktů vyřešeno se zachováním kolegových změn; podrobná historie a rozhodnutí v MERGE_MAIN.md. Frontend Compose přesně main, backend/sandbox naše bezpečnostní nastavení plus main port/CORS. Doplněn pouze autorizovaný nginx /api/health. Kontrakt ponechán přesně main; opravena audio cesta a CORS/WS/500 kompatibilita. Finální testy 627 backend+sandbox, 36 relay, 5 frontend passed; Docker build/start a health3000/8000 HTTP200; izolovaný mock skutečný HTTP/WS A→approve→B→approve/reuse prošel, sandbox bezpečnostní kontroly rovněž. Žádná nová živá LLM volání, produkční data ani deployment. Lokální merge dokončen merge commitem; další krok je pouze Adamův push a vzdálené CI.

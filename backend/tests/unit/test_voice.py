@@ -54,7 +54,7 @@ async def test_official_endpoint_headers_body_audio_and_event():
     run = RunState("run_aabb", "test")
     await service.speak(run, "České shrnutí.")
     assert run.audio == b"ID3fake-mp3"
-    assert emitter.events == [("voice_ready", "approval", {"audio_url": "/api/runs/run_aabb/audio"})]
+    assert emitter.events == [("voice_ready", "approval", {"audio_url": "/runs/run_aabb/audio"})]
     request = observed[0]
     assert str(request.url) == "https://api.elevenlabs.io/v1/text-to-speech/voice123?output_format=mp3_44100_128"
     assert request.headers["xi-api-key"] == "test-tts-secret"
