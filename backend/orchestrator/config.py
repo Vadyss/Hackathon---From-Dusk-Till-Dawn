@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import math
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -43,12 +44,19 @@ class Settings:
     log_level: str = "INFO"
 
     @classmethod
-    def from_env(cls) -> Settings:
+    def from_env(cls, *, load_env_file: bool = False) -> Settings:
+        if load_env_file:
+            from dotenv import load_dotenv
+
+            load_dotenv()
         kwargs = {}
         defaults = cls()
         for name in cls.__dataclass_fields__:
             raw = os.environ.get(name.upper())
             if raw is None:
+                continue
+            if raw == "" and name not in {"apify_token", "llm_api_key", "elevenlabs_api_key",
+                                          "elevenlabs_voice_id", "cors_origins", "mock_scenario"}:
                 continue
             default = getattr(defaults, name)
             if isinstance(default, bool):
@@ -71,11 +79,11 @@ class Settings:
         settings = cls(**kwargs)
         if settings.llm_provider not in {"apify", "openai_compatible", "mock"}:
             raise ValueError("Neplatný poskytovatel LLM.")
-        if settings.mock_scenario and settings.mock_scenario not in "ABCDEF":
+        if settings.mock_scenario and settings.mock_scenario not in {"A", "B", "C", "D", "E", "F"}:
             raise ValueError("Neplatný mock scénář.")
-        if not 0 <= settings.llm_max_retries <= 2 or settings.llm_max_calls_per_run < 1:
+        if not 0 <= settings.llm_max_retries <= 2 or not 1 <= settings.llm_max_calls_per_run <= 25:
             raise ValueError("Neplatné limity LLM.")
-        if min(settings.llm_timeout_s, settings.sandbox_timeout_s, settings.run_timeout_s) <= 0:
+        if any(not math.isfinite(v) or v <= 0 for v in (settings.llm_timeout_s, settings.sandbox_timeout_s, settings.run_timeout_s)):
             raise ValueError("Časové limity musí být kladné.")
         if settings.llm_max_tokens < 1 or settings.mock_delay_ms < 0:
             raise ValueError("Neplatné limity LLM.")

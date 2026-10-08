@@ -4,3 +4,5 @@ websockets==15.0.1
 pydantic==2.12.5
 httpx==0.28.1
 PyYAML==6.0.3
+requests==2.32.5
+python-dotenv==1.1.1
