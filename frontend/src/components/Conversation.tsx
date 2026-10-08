@@ -4,9 +4,10 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 
 import { api, ApiError, audioUrl } from "@/lib/api";
 import { dataOf, lastOf, runRequest, runStatus } from "@/lib/derive";
 import type { RunState } from "@/lib/engine";
+import { useDictation } from "@/lib/useDictation";
 import { Activity } from "./Activity";
 import { Outcome, ReviewCard } from "./Approval";
-import { IconArrowUp, Logo } from "./icons";
+import { IconArrowUp, IconMic, IconStop, Logo } from "./icons";
 
 const MAX_REQUEST = 2000;
 
@@ -84,6 +85,9 @@ export function Composer({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const ref = useRef<HTMLTextAreaElement>(null);
+  const dictation = useDictation({ text, onTextChange: setText });
+  const { cancel: cancelDictation } = dictation;
+  const dictationActive = dictation.starting || dictation.listening || dictation.stopping;
 
   const [lastPrefill, setLastPrefill] = useState(prefill);
   if (prefill !== lastPrefill) {
@@ -99,16 +103,32 @@ export function Composer({
   }, [text]);
 
   useEffect(() => {
-    if (prefill) ref.current?.focus();
-  }, [prefill]);
+    if (prefill) {
+      cancelDictation();
+      ref.current?.focus();
+    }
+  }, [prefill, cancelDictation]);
 
   const trimmed = text.trim();
   const tooLong = trimmed.length > MAX_REQUEST;
-  const canSend = !sending && trimmed.length > 0 && !tooLong;
+  const canSend = !sending && !dictationActive && trimmed.length > 0 && !tooLong;
+
+  function toggleDictation() {
+    if (dictation.starting) {
+      cancelDictation();
+    } else if (dictation.listening) {
+      dictation.stop();
+    } else {
+      setError(null);
+      dictation.start();
+      ref.current?.focus();
+    }
+  }
 
   async function submit(e?: FormEvent) {
     e?.preventDefault();
     if (!canSend) return;
+    cancelDictation();
     setSending(true);
     setError(null);
     try {
@@ -136,18 +156,40 @@ export function Composer({
           {error}
         </p>
       )}
+      {dictation.error && (
+        <p role="alert" className="mb-2 px-1 text-sm text-bad">
+          {dictation.error}
+        </p>
+      )}
       <div className="flex items-end gap-2 rounded-[28px] border border-line bg-bg p-2 pl-5 shadow-[0_2px_12px_rgba(0,0,0,0.06)] focus-within:border-subtle">
         <textarea
           ref={ref}
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => {
+            cancelDictation();
+            dictation.clearError();
+            setText(e.target.value);
+          }}
           onKeyDown={onKey}
           rows={1}
           autoFocus={autoFocus}
           placeholder="Describe an attack you want to detect…"
           aria-label="Request for the agent"
-          className="max-h-[200px] min-h-6 flex-1 resize-none self-center bg-transparent py-1.5 text-[15px] leading-6 placeholder:text-subtle focus:outline-none"
+          className="max-h-[200px] min-h-6 min-w-0 flex-1 resize-none self-center bg-transparent py-1.5 text-[15px] leading-6 placeholder:text-subtle focus:outline-none"
         />
+        <button
+          type="button"
+          onClick={toggleDictation}
+          disabled={dictation.supported !== true || sending || dictation.stopping}
+          aria-label={dictationActive ? "Stop dictation" : "Start dictation"}
+          aria-pressed={dictationActive}
+          title={dictationActive ? "Stop dictation" : "Dictate your prompt"}
+          className={`flex size-9 shrink-0 items-center justify-center rounded-full transition disabled:opacity-35 ${
+            dictationActive ? "bg-bad/10 text-bad hover:bg-bad/20" : "text-muted hover:bg-hover hover:text-fg"
+          }`}
+        >
+          {dictationActive ? <IconStop className="size-4.5" /> : <IconMic className="size-4.5" />}
+        </button>
         <button
           type="submit"
           disabled={!canSend}
@@ -156,6 +198,20 @@ export function Composer({
         >
           <IconArrowUp className="size-4.5" />
         </button>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 px-3 text-xs text-subtle">
+        <span>Voice input: English</span>
+        <span role="status" aria-live="polite" className={dictationActive ? "text-bad" : ""}>
+          {dictation.starting
+            ? "Starting microphone…"
+            : dictation.stopping
+              ? "Finishing transcription…"
+              : dictation.listening
+                ? "Listening… stop dictation before sending."
+                : dictation.supported === false
+                  ? "Voice input isn't available in this browser. You can still type."
+                  : ""}
+        </span>
       </div>
       <div className="mt-2 flex justify-between px-3 text-xs text-subtle">
         <span>{busy ? "Another run is in progress." : "The agent's rule is only installed after your approval."}</span>

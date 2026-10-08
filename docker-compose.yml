@@ -2,7 +2,10 @@ name: hackathon
 
 services:
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://127.0.0.1:8000}
     ports:
       - "3000:8080"
     depends_on:
@@ -11,12 +14,15 @@ services:
 
   backend:
     build: ./backend
+    ports:
+      - "${BACKEND_BIND_HOST:-127.0.0.1}:8000:8000"
     networks:
       - default
       - sandbox_net
     restart: unless-stopped
     environment:
       - LLM_API_KEY=${LLM_API_KEY}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
 
   sandbox:
     build: ./sandbox

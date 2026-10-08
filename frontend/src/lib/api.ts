@@ -1,19 +1,16 @@
-// HTTP client per contract chapter 7. Only calls URLs under /api/.
+// HTTP client per contract chapter 7. Calls the backend directly from the browser.
 import type { RunEvent, RunInfo, SkillInfo } from "./types";
 
-// Contract 7.3: empty value means relative URLs on the same host.
-export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE ?? "").replace(/\/+$/, "");
+export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || "http://127.0.0.1:8000").replace(/\/+$/, "");
 
 export function apiUrl(path: string): string {
-  return `${API_BASE}/api${path}`;
+  return `${API_BASE}${path}`;
 }
 
 export function wsUrl(): string {
-  if (API_BASE) {
-    return `${API_BASE.replace(/^http/, "ws")}/api/ws`;
-  }
-  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${proto}//${window.location.host}/api/ws`;
+  const url = new URL(`${API_BASE}/ws`);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  return url.toString();
 }
 
 export function audioUrl(runId: string): string {

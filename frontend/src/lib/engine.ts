@@ -14,7 +14,7 @@ export type Connection = "connecting" | "open" | "reconnecting";
 
 export interface StoreState {
   runs: Record<string, RunState>;
-  skills: SkillInfo[]; // base list from GET /api/skills
+  skills: SkillInfo[]; // base list from GET /skills
   connection: Connection;
   loaded: boolean;
   syncError: string | null;

@@ -30,6 +30,17 @@ export const IconArrowUp = (p: P) => (
     <path d="M12 19V5M5 12l7-7 7 7" />
   </Svg>
 );
+export const IconMic = (p: P) => (
+  <Svg {...p}>
+    <rect x="9" y="2" width="6" height="12" rx="3" />
+    <path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8" />
+  </Svg>
+);
+export const IconStop = (p: P) => (
+  <Svg {...p}>
+    <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none" />
+  </Svg>
+);
 export const IconCheck = (p: P) => (
   <Svg {...p}>
     <path d="M20 6 9 17l-5-5" />
