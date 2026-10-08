@@ -36,6 +36,7 @@ def test_relay_models_and_execution_limits_have_required_defaults():
                for role in ("planner", "forge", "rule", "summary"))
     assert settings.llm_model_examiner == "deepseek/deepseek-v4.1-flash"
     assert settings.llm_model_fallback == "deepseek/deepseek-v4.1-flash"
+    assert settings.llm_reasoning_effort == ""
     assert settings.llm_max_tokens == 8000 and settings.llm_max_tokens_cap == 16000
     assert settings.llm_timeout_s == 180 and settings.run_timeout_s == 1500
     assert settings.llm_max_retries == 2 and settings.llm_max_calls_per_run == 25
@@ -68,6 +69,19 @@ def test_token_cap_and_timeouts_are_environment_configurable(monkeypatch):
     settings = Settings.from_env()
     assert settings.llm_max_tokens == 12000 and settings.llm_max_tokens_cap == 24000
     assert settings.llm_timeout_s == 210 and settings.run_timeout_s == 1800
+
+
+@pytest.mark.parametrize("effort", ["", "minimal", "low", "medium", "high", "xhigh", "max"])
+def test_reasoning_effort_accepts_only_supported_opt_in_values(monkeypatch, effort):
+    monkeypatch.setenv("LLM_REASONING_EFFORT", effort)
+    assert Settings.from_env().llm_reasoning_effort == effort
+
+
+@pytest.mark.parametrize("effort", ["none", "false", "bogus"])
+def test_reasoning_effort_rejects_disabled_or_unknown_values(monkeypatch, effort):
+    monkeypatch.setenv("LLM_REASONING_EFFORT", effort)
+    with pytest.raises(ValueError):
+        Settings.from_env()
 
 
 def test_initial_token_budget_equal_to_cap_is_valid(monkeypatch):

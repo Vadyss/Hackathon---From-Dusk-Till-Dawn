@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from gatekeeper.types import ParseFailure
-from orchestrator.llm import LlmClient, LlmError, extract_json, prompt_for, untrusted
+from orchestrator.llm import LlmBudgetExceeded, LlmClient, LlmError, extract_json, prompt_for, untrusted
 
 
 class Examiner:
@@ -20,6 +20,8 @@ class Examiner:
             repair = "\nReturn only valid JSON matching {\"code\":\"Python source\"}, with no additional text." if attempt else ""
             try:
                 response = await self.client.chat("examiner", self.system, user + repair, context=None)
+            except LlmBudgetExceeded:
+                raise
             except LlmError:
                 return ParseFailure("Zkoušeči se nepodařilo připravit generátor dat.")
             result = response if isinstance(response, ParseFailure) else extract_json(response.text)

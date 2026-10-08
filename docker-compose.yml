@@ -27,6 +27,7 @@ services:
       LLM_MODEL_SUMMARY: "${LLM_MODEL_SUMMARY:-${LLM_MODEL:-anthropic/claude-sonnet-5.5}}"
       LLM_MODEL_EXAMINER: "${LLM_MODEL_EXAMINER:-deepseek/deepseek-v4.1-flash}"
       LLM_MODEL_FALLBACK: "${LLM_MODEL_FALLBACK:-deepseek/deepseek-v4.1-flash}"
+      LLM_REASONING_EFFORT: "${LLM_REASONING_EFFORT:-}"
       LLM_TIMEOUT_S: "${LLM_TIMEOUT_S:-180}"
       LLM_MAX_TOKENS: "${LLM_MAX_TOKENS:-8000}"
       LLM_MAX_TOKENS_CAP: "${LLM_MAX_TOKENS_CAP:-16000}"

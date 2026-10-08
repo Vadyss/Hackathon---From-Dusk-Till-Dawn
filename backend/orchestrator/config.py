@@ -24,6 +24,7 @@ class Settings:
     llm_model_summary: str = "anthropic/claude-sonnet-5.5"
     llm_model_examiner: str = "deepseek/deepseek-v4.1-flash"
     llm_model_fallback: str = "deepseek/deepseek-v4.1-flash"
+    llm_reasoning_effort: str = ""
     llm_timeout_s: float = 180
     llm_max_tokens: int = 8000
     llm_max_tokens_cap: int = 16000
@@ -81,6 +82,8 @@ class Settings:
         settings = cls(**kwargs)
         if settings.llm_provider not in {"apify", "openai_compatible", "mock"}:
             raise ValueError("Neplatný poskytovatel LLM.")
+        if settings.llm_reasoning_effort not in {"", "minimal", "low", "medium", "high", "xhigh", "max"}:
+            raise ValueError("Neplatná intenzita přemýšlení LLM.")
         if settings.mock_scenario and settings.mock_scenario not in {"A", "B", "C", "D", "E", "F"}:
             raise ValueError("Neplatný mock scénář.")
         if not 0 <= settings.llm_max_retries <= 2 or not 1 <= settings.llm_max_calls_per_run <= 25:

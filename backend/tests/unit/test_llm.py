@@ -9,6 +9,7 @@ from types import SimpleNamespace
 import httpx
 import pytest
 
+from examiner import Examiner
 from gatekeeper.types import ParseFailure
 from orchestrator.config import Settings
 from orchestrator.llm import (HttpLlmClient, LlmBudgetExceeded, LlmError, LlmResult, ask,
@@ -313,6 +314,61 @@ async def test_explicit_max_tokens_controls_enlargement_and_cannot_exceed_cap():
         assert stats.llm_calls == 3
 
 
+@pytest.mark.parametrize("effort", ["", "minimal", "low", "medium", "high", "xhigh", "max"])
+async def test_reasoning_payload_is_opt_in_and_always_enabled_when_configured(effort):
+    async with bound_http([completion("usable")], llm_reasoning_effort=effort) as (client, stats, provider):
+        result = await client.chat("planner", "system", "user")
+        assert isinstance(result, LlmResult)
+        if effort:
+            assert provider.requests[0]["reasoning"] == {"enabled": True, "effort": effort}
+            assert provider.requests[0]["reasoning"]["enabled"] is True
+        else:
+            assert "reasoning" not in provider.requests[0]
+        assert stats.llm_calls == 1
+
+
+@pytest.mark.parametrize("effort", ["", "low"])
+async def test_reasoning_configuration_survives_length_retry_and_sticky_fallback(effort):
+    events = [completion(None, finish_reason="length", tokens=11), httpx.Response(429),
+              httpx.Response(503), completion("usable", tokens=7), completion("later", tokens=3)]
+    async with bound_http(events, llm_reasoning_effort=effort, llm_model="main-model",
+                          llm_model_planner="main-model", llm_model_fallback="fallback-model",
+                          llm_max_tokens=8000, llm_max_tokens_cap=16000) as (client, stats, provider):
+        assert (await client.chat("planner", "", "")).model == "fallback-model"
+        assert (await client.chat("forge", "", "")).model == "fallback-model"
+        assert [body["model"] for body in provider.requests] == ["main-model"] * 3 + ["fallback-model"] * 2
+        assert [body["max_tokens"] for body in provider.requests] == [8000, 16000, 16000, 16000, 8000]
+        for body in provider.requests:
+            if effort:
+                assert body["reasoning"] == {"enabled": True, "effort": effort}
+            else:
+                assert "reasoning" not in body
+        assert stats.llm_calls == 5 and stats.tokens_total == 21
+        assert provider.waits == [1, 3]
+
+
+@pytest.mark.parametrize("effort", ["", "low"])
+def test_synchronous_ask_uses_opt_in_reasoning_payload(monkeypatch, effort):
+    monkeypatch.setenv("APIFY_TOKEN", "offline-ask-token")
+    monkeypatch.setenv("LLM_PROVIDER", "apify")
+    monkeypatch.setenv("LLM_BASE_URL", "https://example.invalid/v1")
+    monkeypatch.setenv("LLM_REASONING_EFFORT", effort)
+    monkeypatch.setattr("dotenv.load_dotenv", lambda: None)
+    observed = []
+
+    def post(url, **kwargs):
+        observed.append(kwargs["json"])
+        return SimpleNamespace(status_code=200, content=b"small-response", json=lambda: completion("reply"))
+
+    monkeypatch.setattr("orchestrator.llm.requests.post", post)
+    assert ask("prompt", "system", "custom-model") == "reply"
+    assert len(observed) == 1
+    if effort:
+        assert observed[0]["reasoning"] == {"enabled": True, "effort": effort}
+    else:
+        assert "reasoning" not in observed[0]
+
+
 async def test_repeated_empty_length_is_terminal_and_does_not_trigger_json_repair():
     async with bound_http([completion(None, finish_reason="length", tokens=9),
                            completion("", finish_reason="length", tokens=14)]) as (client, stats, provider):
@@ -339,6 +395,44 @@ async def test_empty_json_repair_returns_parse_failure_without_a_third_call():
         assert isinstance(result, ParseFailure)
         assert stats.llm_calls == 2 and stats.tokens_total == 26
         assert not provider.events
+
+
+@pytest.mark.parametrize("content", ["\ud800 invalid", "invalid \udfff", '{"code":"\ud800"}'])
+async def test_invalid_utf8_content_is_terminal_parse_failure_before_json_repair(content, caplog):
+    body = json.dumps(completion(content, tokens=11), ensure_ascii=True).encode("ascii")
+    async with bound_http([httpx.Response(200, content=body)]) as (client, stats, provider):
+        with caplog.at_level(logging.DEBUG):
+            result = await make_roles(client.settings, client).planner.propose("ordinary request", {}, {}, [])
+        assert isinstance(result, ParseFailure) and result.reason
+        assert stats.llm_calls == 1 and stats.tokens_total == 11
+        assert len(provider.requests) == 1 and not provider.events
+        assert content not in result.reason + caplog.text
+
+
+async def test_invalid_utf8_json_repair_is_returned_as_parse_failure():
+    invalid_body = json.dumps(completion("\ud800 invalid", tokens=13), ensure_ascii=True).encode("ascii")
+    async with bound_http([completion("not-json", tokens=7), httpx.Response(200, content=invalid_body)]) as (client, stats, provider):
+        result = await make_roles(client.settings, client).planner.propose("ordinary request", {}, {}, [])
+        assert isinstance(result, ParseFailure)
+        assert stats.llm_calls == 2 and stats.tokens_total == 20
+        assert len(provider.requests) == 2 and not provider.events
+
+
+async def test_examiner_preserves_an_already_exhausted_run_budget():
+    async with bound_http([], llm_max_calls_per_run=1) as (client, stats, provider):
+        stats.llm_calls = 1
+        with pytest.raises(LlmBudgetExceeded):
+            await Examiner(client).generate("ordinary attack", "ordinary log format")
+        assert stats.llm_calls == 1 and stats.tokens_total is None
+        assert provider.requests == []
+
+
+async def test_examiner_json_repair_cannot_swallow_budget_exhaustion():
+    async with bound_http([completion("not-json", tokens=17)], llm_max_calls_per_run=1) as (client, stats, provider):
+        with pytest.raises(LlmBudgetExceeded):
+            await Examiner(client).generate("ordinary attack", "ordinary log format")
+        assert stats.llm_calls == 1 and stats.tokens_total == 17
+        assert len(provider.requests) == 1 and not provider.events
 
 
 async def test_nonempty_length_answer_is_returned_without_an_empty_answer_retry():

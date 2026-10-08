@@ -142,6 +142,10 @@ def _result(data: dict, model: str) -> LlmResult | ParseFailure:
         content = data["choices"][0]["message"]["content"]
         if not isinstance(content, str) or not content.strip():
             return ParseFailure("Jazykový model nevrátil neprázdný text odpovědi.")
+        try:
+            content.encode("utf-8")
+        except UnicodeError:
+            return ParseFailure("Odpověď jazykového modelu není platný UTF-8 text.")
         return LlmResult(content, _usage_tokens(data), model)
     except (KeyError, IndexError, TypeError, AttributeError, ValueError):
         raise LlmError("Poskytovatel vrátil neplatnou odpověď.") from None
@@ -186,6 +190,12 @@ def _truncated(data: Any) -> bool:
         return False
 
 
+def _reasoning(settings) -> dict:
+    if settings.llm_reasoning_effort:
+        return {"reasoning": {"enabled": True, "effort": settings.llm_reasoning_effort}}
+    return {}
+
+
 class HttpLlmClient:
     def __init__(self, settings, *, transport: httpx.AsyncBaseTransport | None = None, sleep=asyncio.sleep):
         self.settings = settings
@@ -209,7 +219,7 @@ class HttpLlmClient:
             raise LlmError("Chybí přístupový klíč jazykového modelu.")
         token_limit = min(max_tokens or self.settings.llm_max_tokens, self.settings.llm_max_tokens_cap)
         payload = {"messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
-                   "max_tokens": token_limit, "temperature": temperature}
+                   "max_tokens": token_limit, "temperature": temperature, **_reasoning(self.settings)}
         started = time.monotonic()
         attempt = 0
         length_retried = False
@@ -221,6 +231,9 @@ class HttpLlmClient:
                 response = await self._http.post(self.settings.llm_base_url.rstrip("/") + "/chat/completions",
                                                  headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"}, json=payload)
                 retry = response.status_code == 429 or response.status_code >= 500
+                if not 200 <= response.status_code < 300:
+                    logger.warning("LLM provider_error run_id=%s role=%s model=%s category=http status=%d",
+                                   state.run_id, role, model, response.status_code)
                 if retry:
                     _provider_failed(self.settings, state, model)
                 else:
@@ -231,9 +244,10 @@ class HttpLlmClient:
                     except LlmError:
                         _provider_failed(self.settings, state, model)
                         raise
-                    logger.info("LLM run_id=%s role=%s model=%s duration_ms=%d tokens=%s max_tokens=%d output=%s",
+                    logger.info("LLM run_id=%s role=%s model=%s duration_ms=%d tokens=%s max_tokens=%d output=%s output_chars=%d truncated=%s",
                                 state.run_id, role, model, int((time.monotonic() - started) * 1000),
-                                _usage_tokens(data), payload["max_tokens"], "empty" if isinstance(result, ParseFailure) else "text")
+                                _usage_tokens(data), payload["max_tokens"], "empty" if isinstance(result, ParseFailure) else "text",
+                                0 if isinstance(result, ParseFailure) else len(result.text), _truncated(data))
                     if isinstance(result, ParseFailure) and _truncated(data) and not length_retried:
                         enlarged = min(payload["max_tokens"] * 2, self.settings.llm_max_tokens_cap)
                         payload["max_tokens"] = enlarged
@@ -241,9 +255,13 @@ class HttpLlmClient:
                         continue
                     return result
             except (httpx.TimeoutException, httpx.NetworkError):
+                logger.warning("LLM provider_error run_id=%s role=%s model=%s category=timeout_or_network",
+                               state.run_id, role, model)
                 _provider_failed(self.settings, state, model)
                 retry = True
             except httpx.HTTPError:
+                logger.warning("LLM provider_error run_id=%s role=%s model=%s category=protocol",
+                               state.run_id, role, model)
                 _provider_failed(self.settings, state, model)
                 raise LlmError("Volání jazykového modelu selhalo.") from None
             if attempt == self.settings.llm_max_retries:
@@ -288,11 +306,17 @@ async def json_chat(client: LlmClient, role: str, system: str, user: str, contex
         return result
     parsed = extract_json(result.text)
     if isinstance(parsed, ParseFailure):
+        logger.info("LLM json_parse_failed run_id=%s role=%s stage=initial",
+                    (LlmProviderState.get() or ProviderState()).run_id, role)
         repair = dict(context, repair=True)
         repaired = await client.chat(role, system,
                                      user + "\n" + untrusted("invalid_output", result.text[:20000])
                                      + "\nReturn only valid JSON matching the required schema, with no additional text.", context=repair)
-        return repaired if isinstance(repaired, ParseFailure) else extract_json(repaired.text)
+        parsed = repaired if isinstance(repaired, ParseFailure) else extract_json(repaired.text)
+        if isinstance(parsed, ParseFailure):
+            logger.info("LLM json_parse_failed run_id=%s role=%s stage=repair",
+                        (LlmProviderState.get() or ProviderState()).run_id, role)
+        return parsed
     return parsed
 
 
@@ -317,7 +341,8 @@ def ask(prompt: str, system: str | None = None, model: str | None = None) -> str
         try:
             response = requests.post(settings.llm_base_url.rstrip("/") + "/chat/completions",
                                      headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-                                     json={"model": model, "messages": messages, "max_tokens": token_limit, "temperature": 0.2},
+                                     json={"model": model, "messages": messages, "max_tokens": token_limit, "temperature": 0.2,
+                                           **_reasoning(settings)},
                                      timeout=settings.llm_timeout_s, allow_redirects=False)
             retry = response.status_code == 429 or response.status_code >= 500
             if retry:
