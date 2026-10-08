@@ -16,7 +16,47 @@ services:
       - sandbox_net
     restart: unless-stopped
     environment:
-      - APIFY_TOKEN=${APIFY_TOKEN}
+      APIFY_TOKEN: "${APIFY_TOKEN:-}"
+      LLM_API_KEY: "${LLM_API_KEY:-}"
+      LLM_PROVIDER: "${LLM_PROVIDER:-apify}"
+      LLM_BASE_URL: "${LLM_BASE_URL:-https://openrouter.apify.actor/api/v1}"
+      LLM_MODEL: "${LLM_MODEL:-openrouter/auto}"
+      LLM_MODEL_PLANNER: "${LLM_MODEL_PLANNER:-${LLM_MODEL:-openrouter/auto}}"
+      LLM_MODEL_FORGE: "${LLM_MODEL_FORGE:-${LLM_MODEL:-openrouter/auto}}"
+      LLM_MODEL_RULE: "${LLM_MODEL_RULE:-${LLM_MODEL:-openrouter/auto}}"
+      LLM_MODEL_SUMMARY: "${LLM_MODEL_SUMMARY:-${LLM_MODEL:-openrouter/auto}}"
+      LLM_MODEL_EXAMINER: "${LLM_MODEL_EXAMINER:-${LLM_MODEL:-openrouter/auto}}"
+      LLM_TIMEOUT_S: "${LLM_TIMEOUT_S:-120}"
+      LLM_MAX_TOKENS: "${LLM_MAX_TOKENS:-2000}"
+      LLM_MAX_RETRIES: "${LLM_MAX_RETRIES:-2}"
+      LLM_MAX_CALLS_PER_RUN: "${LLM_MAX_CALLS_PER_RUN:-25}"
+      MOCK_SCENARIO: "${MOCK_SCENARIO:-}"
+      MOCK_DELAY_MS: "${MOCK_DELAY_MS:-400}"
+      SANDBOX_URL: http://sandbox:8000
+      SANDBOX_TIMEOUT_S: "${SANDBOX_TIMEOUT_S:-30}"
+      DATA_DIR: /data
+      DATASETS_DIR: /app/datasets
+      POLICY_PATH: /app/policy/policy.yaml
+      SEED_SKILLS_DIR: /app/seed_skills
+      ELEVENLABS_API_KEY: "${ELEVENLABS_API_KEY:-}"
+      ELEVENLABS_VOICE_ID: "${ELEVENLABS_VOICE_ID:-}"
+      ELEVENLABS_MODEL_ID: "${ELEVENLABS_MODEL_ID:-eleven_multilingual_v2}"
+      EXAMINER_ENABLED: "${EXAMINER_ENABLED:-false}"
+      RUN_TIMEOUT_S: "${RUN_TIMEOUT_S:-900}"
+      CORS_ORIGINS: "${CORS_ORIGINS:-}"
+      LOG_LEVEL: "${LOG_LEVEL:-INFO}"
+    volumes:
+      - frankenstein-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777,noexec,nosuid
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      sandbox:
+        condition: service_healthy
 
   sandbox:
     build: ./sandbox
@@ -25,7 +65,7 @@ services:
     restart: unless-stopped
     read_only: true
     tmpfs:
-      - /tmp
+      - /tmp:size=64m,mode=1777,noexec,nosuid
     cap_drop:
       - ALL
     security_opt:
@@ -37,3 +77,6 @@ services:
 networks:
   sandbox_net:
     internal: true
+
+volumes:
+  frankenstein-data: {}

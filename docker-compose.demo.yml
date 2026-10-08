@@ -1,0 +1,15 @@
+# Use a separate project when another stack already owns port 3000.
+services:
+  backend:
+    environment:
+      LLM_PROVIDER: mock
+      MOCK_DELAY_MS: "600"
+      APIFY_TOKEN: ""
+      LLM_API_KEY: ""
+      ELEVENLABS_API_KEY: ""
+      ELEVENLABS_VOICE_ID: ""
+    volumes:
+      - frankenstein-data-demo:/data
+
+volumes:
+  frankenstein-data-demo: {}
