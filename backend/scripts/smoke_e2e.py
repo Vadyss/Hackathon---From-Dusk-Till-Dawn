@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import math
 import sys
 import time
 from urllib.parse import urlsplit, urlunsplit
@@ -23,7 +24,7 @@ SEQUENCE_B = [
 ]
 
 
-async def smoke(base: str, timeout_s: float) -> None:
+async def smoke(base: str, timeout_s: float, idle_s: float = 0) -> None:
     parts = urlsplit(base.rstrip("/"))
     ws_url = urlunsplit(("wss" if parts.scheme == "https" else "ws", parts.netloc,
                         parts.path + "/api/ws", "", ""))
@@ -36,6 +37,14 @@ async def smoke(base: str, timeout_s: float) -> None:
         assert "distinct_count_window" not in {skill["name"] for skill in skills}, (
             "Smoke potřebuje nový demo registr. Použijte samostatný Compose projekt; existující data nemažte.")
         async with connect(ws_url, open_timeout=10, ping_interval=20) as websocket:
+            remaining = idle_s
+            while remaining > 0:
+                pause = min(30, remaining)
+                await asyncio.sleep(pause)
+                remaining -= pause
+                pong = await websocket.ping()
+                await asyncio.wait_for(pong, timeout=5)
+                print(f"WebSocket idle: {idle_s - remaining:.0f} s, ping/pong OK.", flush=True)
             async def collect() -> None:
                 async for raw in websocket:
                     observed.append(json.loads(raw))
@@ -87,9 +96,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base", default="http://localhost:3000")
     parser.add_argument("--timeout", type=float, default=90)
+    parser.add_argument("--idle-before-run", type=float, default=0,
+                        help="Ověří nečinný WebSocket po zadanou dobu před prvním během.")
     arguments = parser.parse_args()
+    if (not math.isfinite(arguments.timeout) or arguments.timeout <= 0
+            or not math.isfinite(arguments.idle_before_run) or arguments.idle_before_run < 0):
+        parser.error("Timeout musí být kladný a nečinnost nezáporná konečná hodnota.")
     try:
-        asyncio.run(smoke(arguments.base, arguments.timeout))
+        asyncio.run(smoke(arguments.base, arguments.timeout, arguments.idle_before_run))
     except (AssertionError, httpx.HTTPError, RuntimeError, TimeoutError, OSError) as exc:
         print(f"Smoke selhal: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc

@@ -12,6 +12,7 @@ COPY examiner/ ./examiner/
 COPY policy/ ./policy/
 COPY seed_skills/ ./seed_skills/
 COPY datasets/ ./datasets/
+COPY scripts/verify_audit.py scripts/llm_smoke.py ./scripts/
 RUN useradd --create-home --uid 10001 appuser && mkdir -p /data && chown appuser:appuser /data
 USER appuser
 EXPOSE 8000

@@ -73,6 +73,7 @@ jobs:
         run: docker compose up --build -d
         env:
           APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
 
       - name: Backend health check
         run: curl --fail --retry 10 --retry-delay 3 --retry-all-errors http://localhost:3000/api/health
