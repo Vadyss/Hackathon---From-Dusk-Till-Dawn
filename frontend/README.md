@@ -51,12 +51,51 @@ For access from another device, also set `BACKEND_BIND_HOST=0.0.0.0`, a publicly
 
 Click the microphone next to the text field and allow microphone access. Voice dictation uses English (`en-US`) only. There is no language selector. Recognized speech is added to the text as you speak.
 
-To finish, click the stop button that replaces the microphone. Once transcription finishes, you can edit the text and submit it with `Send`. Typing manually or selecting a preset prompt stops dictation. Sending is disabled while transcription is in progress so the final result is preserved. The prompt limit remains 2000 characters.
+To finish, click `Stop voice`. Once transcription finishes, you can edit the text and submit it with `Build detection`. Typing manually, selecting a template, or leaving the request editor stops dictation. Sending is disabled while transcription is in progress so the final result is preserved. Voice text shares the combined 2,000-character request limit described below.
 
-This feature requires HTTPS or localhost and a browser that supports [SpeechRecognition](https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognition). If the API is unavailable or the browser denies microphone access, the interface displays a message and text input remains available. Some browsers, such as Chrome, may send audio to their online speech recognition service. Clicking `Send` submits the resulting text to the backend as a normal prompt.
+This feature requires HTTPS or localhost and a browser that supports [SpeechRecognition](https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognition). If the API is unavailable or the browser denies microphone access, the interface displays a message and text input remains available. Some browsers, such as Chrome, may send audio to their online speech recognition service. Clicking `Build detection` submits the resulting text to the backend as a normal prompt.
+
+## Requests and context
+
+The production workspace uses the real backend for runs, events, approval, rules, and skills. The standalone `ui-concept` directory remains a separate design preview; its scripted examples are not used by this frontend.
+
+By default, `Enter` inserts a new line and `Ctrl+Enter` or `Cmd+Enter` sends the request. In Preferences, you can instead make `Enter` send and use `Shift+Enter` for a new line. Sending is disabled while the backend is unavailable, a run is active, files are being read, or voice transcription is in progress. A failed submission keeps your draft so you can retry.
+
+Use `Instructions` for constraints and `Attach files` for up to three `.txt`, `.log`, `.csv`, `.json`, or `.md` files, each at most 256 KB. Files can be previewed as plain text and removed before sending. The complete file contents and instructions are included as labeled sections in the existing `POST /runs` body: `{ "request": "..." }`. There is no separate upload endpoint.
+
+The combined request, instructions, file contents, and section labels must fit within **2,000 Unicode code points**, matching the backend's character count. The editor shows the combined count and blocks submission when it exceeds the limit; it never silently truncates attached text. The file size limit does not increase the request limit. Shorten the text or remove a file if needed.
+
+Unsent drafts, instructions, and attachments stay in memory for the current page session. They are not saved in browser storage and are cleared on reload. Submitted context becomes part of the backend run request. `Edit & rerun` opens the original request for editing before a new submission.
+
+## Preferences and history
+
+Preferences apply immediately and are saved in browser `localStorage` under `frankenstein-preferences`. They include:
+
+- Light, dark, or system appearance.
+- Reading size, interface density, and content width.
+- Visibility of templates, recent work, context panels, and keyboard hints.
+- Enter behavior, spellcheck, and JSON wrapping.
+
+`Restore defaults` resets those preferences without discarding draft text. If browser storage is unavailable, settings apply for the current page session. Scrolling respects the system's reduced-motion preference. All interface copy and dictation controls are in English.
+
+Open `Search runs` with `Ctrl+K` or `Cmd+K` to search backend runs, rename them in the interface, pin them, or archive them. Names, pins, and archive choices are kept in memory for the current page session; they reset on reload and do not alter backend records. Archiving hides a run from the main history; it does not delete or stop the run. Archived runs can be restored from the search dialog.
+
+## Validation
+
+From `frontend`, run:
+
+```powershell
+npm.cmd run lint
+npm.cmd test
+npm.cmd run build
+```
+
+The tests use Node's built-in test runner and the existing TypeScript dependency. They check request assembly, Unicode boundaries, exact file content preservation, and combined context limits without contacting a backend.
 
 ## Current backend scope
 
 After creating a run, the backend sends only the `run_started` event. Planning, skill generation, rule evaluation, summaries, and voice summaries are not yet implemented. The run remains active; another request returns `RUN_ALREADY_ACTIVE`. Until the pipeline is complete, restart the backend to start a new run.
+
+The backend does not provide a stop or cancel endpoint, so the production frontend does not offer a control that pretends to cancel a running detection. `Stop voice` only stops microphone dictation.
 
 The [contract](../Docs/kontrakt.md) describes the API format and intended event behavior.

@@ -1,110 +1,60 @@
 @import "tailwindcss";
-
-:root {
-  --bg: #ffffff;
-  --sidebar: #f9f9f9;
-  --surface: #f4f4f4;
-  --hover: #ececec;
-  --line: #e5e5e5;
-  --fg: #0d0d0d;
-  --muted: #5d5d5d;
-  --subtle: #8f8f8f;
-  --ok: #15803d;
-  --bad: #c62828;
-  --warn: #a15c07;
-  --info: #2563eb;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #212121;
-    --sidebar: #171717;
-    --surface: #2f2f2f;
-    --hover: #2a2a2a;
-    --line: #3a3a3a;
-    --fg: #ececec;
-    --muted: #b4b4b4;
-    --subtle: #8a8a8a;
-    --ok: #4ade80;
-    --bad: #f87171;
-    --warn: #fbbf24;
-    --info: #60a5fa;
-  }
-}
+@import "./workspace.css" layer(components);
 
 @theme inline {
   --color-bg: var(--bg);
   --color-sidebar: var(--sidebar);
   --color-surface: var(--surface);
-  --color-hover: var(--hover);
-  --color-line: var(--line);
-  --color-fg: var(--fg);
+  --color-hover: var(--surface-hover);
+  --color-line: var(--border);
+  --color-fg: var(--text);
   --color-muted: var(--muted);
-  --color-subtle: var(--subtle);
+  --color-subtle: var(--muted);
   --color-ok: var(--ok);
-  --color-bad: var(--bad);
-  --color-warn: var(--warn);
-  --color-info: var(--info);
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --color-bad: var(--danger);
+  --color-warn: var(--amber);
+  --color-info: var(--accent);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, monospace;
 }
 
-html {
-  color-scheme: light dark;
-}
-
-body {
-  background: var(--bg);
-  color: var(--fg);
-  font-family: var(--font-sans);
-}
-
-/* Contract 5.2: long strings without spaces must not break the layout. */
-p,
-li,
-span,
-pre,
-h1,
-h2,
-h3 {
-  overflow-wrap: anywhere;
-}
-
-@keyframes fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(2px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-.animate-in {
-  animation: fade-in 0.2s ease-out;
-}
-
-@keyframes shimmer {
-  from {
-    background-position: 200% 0;
-  }
-  to {
-    background-position: -200% 0;
-  }
-}
-
-/* "Thinking" text shimmer, as used by chat assistants */
-.shimmer {
-  background: linear-gradient(90deg, var(--subtle) 25%, var(--fg) 50%, var(--subtle) 75%);
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: shimmer 2.2s linear infinite;
-}
-
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--line) transparent;
-}
+body, .sidebar { --fg: var(--text); --line: var(--border); --hover: var(--surface-hover); --subtle: var(--muted); --bad: var(--danger); --warn: var(--amber); --info: var(--accent); }
+.empty-state { padding: 28px 18px; color: var(--muted); font-size: 13px; line-height: 1.8; border: 1px dashed var(--border); border-radius: 8px; }
+.empty-state h2 { color: var(--text); font-size: 16px; margin-bottom: 8px; }
+.connection-pill.offline .status-dot { background: var(--amber); }
+.state-label.running { color: var(--accent); }
+.state-label.awaiting_approval { color: var(--amber); }
+.state-label.failed { color: var(--danger); }
+.run-heading > div { min-width: 0; }
+.run-heading h1 { font-size: 27px; }
+.run-request { white-space: pre-wrap; max-height: 240px; overflow: auto; }
+.run-summary { font-size: 14px; line-height: 1.8; white-space: pre-wrap; }
+.run-summary audio { display: block; margin-top: 16px; max-width: 100%; }
+.run-detail .activity-list { overflow-wrap: anywhere; }
+.code-block pre { white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal; }
+body.code-nowrap .code-block pre { white-space: pre; overflow-wrap: normal; }
+body[data-reading-size="large"] .run-detail .run-request,
+body[data-reading-size="large"] .run-summary { font-size: 16px; }
+body[data-reading-size="large"] .run-detail .code-block pre { font-size: 13px; }
+body[data-reading-size="large"] .run-detail .activity-list .text-sm { font-size: 16px; }
+body[data-reading-size="large"] .run-detail .activity-list .text-xs { font-size: 13px; }
+.code-block .code-tools { display: flex; flex-wrap: wrap; gap: 12px; }
+.copy-feedback { margin-top: 6px; font-size: 12px; color: var(--muted); }
+.mobile-navigation { width: 236px; height: 100dvh; max-height: none; max-width: 90vw; padding: 0; margin: 0; border: 0; background: var(--sidebar); color: var(--text); }
+.mobile-navigation::backdrop { background: #0b142880; }
+.mobile-navigation .sidebar { position: static; width: 100%; height: 100%; transform: none; }
+.mobile-navigation .sidebar-close { align-self: flex-end; margin-bottom: 10px; }
+.desktop-navigation { display: flex; }
+.brand { text-align: left; background: transparent; }
+.brand-mark svg { fill: currentColor; }
+.nav-item:disabled { opacity: .5; }
+.workspace-heading .draft-indicator { white-space: nowrap; }
+.skills-grid .skill-card footer { flex-wrap: wrap; }
+.workspace-footer { margin-top: auto; }
+.run-context-skills { display: grid; gap: 16px; }
+.run-context-skills strong { display: block; font-size: 12px; }
+.run-context-skills small { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; }
+@media (max-width: 780px) { .desktop-navigation { display: none; } }
+@media (min-width: 781px) { .mobile-navigation[open] { display: none; } }
+@media (max-width: 520px) { .run-heading h1 { font-size: 23px; } .run-tools-note { margin-left: 0; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }

@@ -31,6 +31,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;
   try {
     res = await fetch(apiUrl(path), {
+      signal: AbortSignal.timeout(15000),
       ...init,
       headers: init?.body ? { "Content-Type": "application/json" } : undefined,
       cache: "no-store",
