@@ -30,7 +30,7 @@ jobs:
       - name: Build and start containers
         run: docker compose up --build -d
         env:
-          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
 
       - name: Backend health check
         run: curl --fail --retry 10 --retry-delay 3 --retry-all-errors http://localhost:3000/api/health
@@ -40,7 +40,7 @@ jobs:
 
       - name: Sandbox security checks
         run: |
-          if docker exec hackathon-sandbox-1 printenv LLM_API_KEY > /dev/null; then
+          if docker exec hackathon-sandbox-1 printenv APIFY_TOKEN > /dev/null; then
             echo "FAIL: sandbox has API key"; exit 1
           fi
           if docker exec hackathon-sandbox-1 python -c "import urllib.request; urllib.request.urlopen('http://1.1.1.1', timeout=5)" > /dev/null 2>&1; then
