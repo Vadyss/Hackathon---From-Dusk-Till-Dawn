@@ -76,8 +76,8 @@ export function PreferencesDialog({ open, onClose }: { open: boolean; onClose: (
             <legend>Input</legend>
             <p className="preferences-description">Choose what the Enter key does while writing your prompt.</p>
             <div className="keyboard-options">
-              <label className="keyboard-option"><input type="radio" name="enter-behavior" data-preference="enterBehavior" value="send" checked={preferences.enterBehavior === "send"} onChange={() => updatePreference("enterBehavior", "send")} /><span><strong>Send prompt <small className="preference-recommended">Default</small></strong><small>Enter sends. Shift + Enter adds a line.</small></span></label>
-              <label className="keyboard-option"><input type="radio" name="enter-behavior" data-preference="enterBehavior" value="newline" checked={preferences.enterBehavior === "newline"} onChange={() => updatePreference("enterBehavior", "newline")} /><span><strong>New line</strong><small>Enter adds a line. Ctrl / Cmd + Enter sends.</small></span></label>
+              <label className="keyboard-option"><input type="radio" name="enter-behavior" data-preference="enterBehavior" value="newline" checked={preferences.enterBehavior === "newline"} onChange={() => updatePreference("enterBehavior", "newline")} /><span><strong>New line <small className="preference-recommended">Default</small></strong><small>Enter adds a line. Ctrl / Cmd + Enter sends.</small></span></label>
+              <label className="keyboard-option"><input type="radio" name="enter-behavior" data-preference="enterBehavior" value="send" checked={preferences.enterBehavior === "send"} onChange={() => updatePreference("enterBehavior", "send")} /><span><strong>Send prompt</strong><small>Enter sends. Shift + Enter adds a line.</small></span></label>
             </div>
             <Toggle name="spellcheck" label="Check spelling" description="Use your browser's spellcheck in the prompt editor." />
             <Toggle name="showShortcuts" label="Show keyboard hints" description="Display sending shortcuts below the prompt. Shortcuts always work." />

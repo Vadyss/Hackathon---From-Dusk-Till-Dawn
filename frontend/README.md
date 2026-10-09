@@ -59,7 +59,7 @@ This feature requires HTTPS or localhost and a browser that supports [SpeechReco
 
 The production workspace uses the real backend for runs, events, approval, rules, and skills. The standalone `ui-concept` directory remains a separate design preview; its scripted examples are not used by this frontend.
 
-By default, `Enter` sends the request and `Shift+Enter` inserts a new line. In Preferences, you can instead make `Enter` insert a new line and use `Ctrl+Enter` or `Cmd+Enter` to send. An existing saved choice is preserved; `Restore defaults` selects sending with Enter. Sending is disabled while the backend is unavailable, a run is active, files are being read, or voice transcription is in progress. A failed submission keeps your draft so you can retry.
+By default, `Enter` inserts a new line and `Ctrl+Enter` or `Cmd+Enter` sends the request. In Preferences, you can instead make `Enter` send and use `Shift+Enter` for a new line. Sending is disabled while the backend is unavailable, a run is active, files are being read, or voice transcription is in progress. A failed submission keeps your draft so you can retry.
 
 Use `Instructions` for constraints and `Attach files` for up to three `.txt`, `.log`, `.csv`, `.json`, or `.md` files, each at most 256 KB. Files can be previewed as plain text and removed before sending. The complete file contents and instructions are included as labeled sections in the existing `POST /runs` body: `{ "request": "..." }`. There is no separate upload endpoint.
 
