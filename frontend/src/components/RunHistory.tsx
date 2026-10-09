@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
@@ -68,9 +69,17 @@ function RunHistoryModal({ onClose, runs, organization, onSelect }: Omit<RunHist
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
+    const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     dialog.showModal();
     searchRef.current?.focus();
-    return () => dialog.close();
+    return () => {
+      const focus = document.activeElement;
+      const restoreFocus = focus === document.body || (focus instanceof Node && dialog.contains(focus));
+      dialog.close();
+      if (!restoreFocus) return;
+      if (trigger?.isConnected && trigger.getClientRects().length) trigger.focus({ preventScroll: true });
+      else document.querySelector<HTMLButtonElement>("#menu-toggle")?.focus({ preventScroll: true });
+    };
   }, []);
 
   const matches = useMemo(() => {
@@ -145,7 +154,7 @@ function RunHistoryModal({ onClose, runs, organization, onSelect }: Omit<RunHist
           const title = titleFor(run);
           return (
             <article key={run.run_id} className="history-result">
-              <button type="button" className="history-result-open" onClick={() => { onClose(); onSelect(run.run_id); }}>
+              <button type="button" className="history-result-open" onClick={() => { dialogRef.current?.close(); onClose(); onSelect(run.run_id); }}>
                 <span className="history-result-top"><strong>{title}</strong>{entry?.pinned && <span className="history-pinned-label">Pinned</span>}</span>
                 <span className="history-result-prompt">{runRequest(run) || "The request has not been received yet."}</span>
                 <span className="history-result-meta">
