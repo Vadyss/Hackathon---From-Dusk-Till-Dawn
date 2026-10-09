@@ -4,15 +4,15 @@ import type { RunState } from "@/lib/engine";
 import type { RunStats } from "@/lib/types";
 import { usageCost } from "./Usage";
 
-type Row = { key: keyof RunStats; label: string; fmt: (v: number | null | undefined) => string; lowerIsBetter: boolean };
+type Row = { key: keyof RunStats; label: string; fmt: (v: number | string | null | undefined) => string; lowerIsBetter: boolean };
 
 const ROWS: Row[] = [
-  { key: "duration_ms", label: "Duration", fmt: formatDuration, lowerIsBetter: true },
-  { key: "llm_calls", label: "LLM calls", fmt: formatNumber, lowerIsBetter: true },
-  { key: "tokens_total", label: "Tokens", fmt: formatNumber, lowerIsBetter: true },
+  { key: "duration_ms", label: "Duration", fmt: (v) => formatDuration(v as number | null | undefined), lowerIsBetter: true },
+  { key: "llm_calls", label: "LLM calls", fmt: (v) => formatNumber(v as number | null | undefined), lowerIsBetter: true },
+  { key: "tokens_total", label: "Tokens", fmt: (v) => formatNumber(v as number | null | undefined), lowerIsBetter: true },
   { key: "cost_usd", label: "Cost (USD)", fmt: formatCost, lowerIsBetter: true },
-  { key: "skills_built", label: "Skills built", fmt: formatNumber, lowerIsBetter: true },
-  { key: "skills_reused", label: "Skills reused", fmt: formatNumber, lowerIsBetter: false },
+  { key: "skills_built", label: "Skills built", fmt: (v) => formatNumber(v as number | null | undefined), lowerIsBetter: true },
+  { key: "skills_reused", label: "Skills reused", fmt: (v) => formatNumber(v as number | null | undefined), lowerIsBetter: false },
 ];
 
 function statsOf(run: RunState): Partial<RunStats> | null {

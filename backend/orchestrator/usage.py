@@ -13,6 +13,7 @@ from pathlib import Path
 from gatekeeper.api import UsageStore
 
 logger = logging.getLogger(__name__)
+MAX_AVERAGE_RUNS = 50
 
 
 def money(value):
@@ -151,16 +152,24 @@ class UsageLedger:
         most = max(ranked, key=lambda s: money(s["cost_usd"]), default=None) if not totals["unknown_cost_calls"] and money(totals["cost_usd"]) else None
         costs = []
         if self.path and self.path.parent.parent.exists():
-            for path in self.path.parent.parent.glob("run_*/usage.json"):
-                if path == self.path:
-                    continue
+            def modified(path):
                 try:
-                    previous = json.loads(path.read_text()).get("summary")
+                    return path.stat().st_mtime
+                except OSError:
+                    return 0
+            recent = sorted((p for p in self.path.parent.parent.glob("run_*/usage.json") if p != self.path),
+                            key=modified, reverse=True)[:MAX_AVERAGE_RUNS]
+            for path in recent:
+                try:
+                    data = json.loads(path.read_text())
+                    previous = data.get("summary")
+                    if any(r.get("cost_source") == "mock" for r in data.get("records", [])):
+                        continue
                     if previous and not previous["totals"]["unknown_cost_calls"]:
                         costs.append(money(previous["totals"]["cost_usd"]))
                 except (OSError, ValueError, KeyError, TypeError):
                     logger.warning("A saved usage summary could not be read.")
-        if totals["cost_usd"] is not None:
+        if totals["cost_usd"] is not None and not any(r["cost_source"] == "mock" for r in self.records):
             costs.append(money(totals["cost_usd"]))
         costs = [c for c in costs if c is not None]
         observations = []

@@ -52,7 +52,7 @@ export interface RunStats {
   duration_ms: number;
   llm_calls: number;
   tokens_total: number | null;
-  cost_usd: number | null;
+  cost_usd: string | number | null; // exact decimal string; null when any call cost is unknown
   skills_built: number;
   skills_reused: number;
 }

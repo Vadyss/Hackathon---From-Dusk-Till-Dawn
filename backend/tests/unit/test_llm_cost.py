@@ -47,10 +47,15 @@ async def chat_responses(responses):
 
 
 async def test_cost_sums_all_reported_responses_and_reaches_summary_stats():
-    stats, _ = await chat_responses([response(.0123), response(.0456), response(include_cost=False)])
-    assert stats.cost_usd == Decimal("0.0579")
-    assert stats.snapshot()["cost_usd"] == pytest.approx(.0579)
+    stats, _ = await chat_responses([response(.0123), response(.0456), response(.01)])
+    assert stats.cost_usd == Decimal("0.0679")
+    assert stats.snapshot()["cost_usd"] == "0.0679"
     assert stats.llm_calls == 3 and stats.tokens_total == 21
+
+
+async def test_partial_cost_is_never_reported_as_total():
+    stats, _ = await chat_responses([response(.0123), response(include_cost=False)])
+    assert stats.snapshot()["cost_usd"] is None
 
 
 async def test_cost_counts_empty_answer_and_automatic_length_retry():
@@ -90,10 +95,10 @@ async def test_summary_event_serializes_cost_and_old_missing_cost_is_null():
     emitter = EventEmitter(WebSocketHub())
     await emitter.emit(run, "run_started", "intake", {"request": run.request})
     await emitter.emit(run, "validation_done", "validation", {"dataset": "validation", "metrics": METRICS})
-    run.stats.cost_usd = .031
+    run.stats.cost_usd = Decimal("0.031")
     event = await emitter.emit(run, "summary", "approval", {"text": "Done.", "stats": run.stats.snapshot()})
-    assert event["data"]["stats"]["cost_usd"] == .031
-    assert json.loads(json.dumps(event))["data"]["stats"]["cost_usd"] == .031
+    assert event["data"]["stats"]["cost_usd"] == "0.031"
+    assert json.loads(json.dumps(event))["data"]["stats"]["cost_usd"] == "0.031"
     assert RunCounters().snapshot()["cost_usd"] is None
 
 

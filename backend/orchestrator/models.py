@@ -47,7 +47,7 @@ class RunStats(ContractModel):
     duration_ms: int = Field(ge=0)
     llm_calls: int = Field(ge=0)
     tokens_total: int | None = Field(ge=0)
-    cost_usd: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    cost_usd: str | None = Field(default=None, pattern=r"^\d+(?:\.\d+)?$")
     skills_built: int = Field(ge=0)
     skills_reused: int = Field(ge=0)
 
