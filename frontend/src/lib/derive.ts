@@ -84,7 +84,7 @@ export function installedSkills(base: SkillInfo[], runs: Record<string, RunState
       if (!prev || (s.version ?? 0) >= (prev.version ?? 0)) byName.set(s.name, s);
     }
   }
-  return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
+  return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name, "en-US"));
 }
 
 export function reusedSkillNames(run: RunState | undefined): Set<string> {
@@ -111,7 +111,7 @@ export function candidateSkills(run: RunState | undefined): SkillInfo[] {
   return out;
 }
 
-const LOCALE = "en-GB";
+const LOCALE = "en-US";
 
 export function formatTime(iso: string): string {
   const d = new Date(iso);
@@ -137,6 +137,18 @@ export function formatRatio(v: number | null | undefined): string {
 export function formatDuration(ms: number | null | undefined): string {
   if (typeof ms !== "number") return "—";
   return ms < 60000 ? `${(ms / 1000).toFixed(1)} s` : `${Math.floor(ms / 60000)} min ${Math.round((ms % 60000) / 1000)} s`;
+}
+
+export function formatNumber(value: number | null | undefined): string {
+  return typeof value === "number" && Number.isFinite(value) ? value.toLocaleString(LOCALE) : "—";
+}
+
+export function formatCost(value: number | null | undefined): string {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? value.toLocaleString(LOCALE, {
+      style: "currency", currency: "USD", minimumFractionDigits: 4, maximumFractionDigits: 6,
+    })
+    : "—";
 }
 
 export const PHASE_LABEL: Record<string, string> = {

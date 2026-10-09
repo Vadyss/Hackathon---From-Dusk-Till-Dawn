@@ -103,3 +103,56 @@ test("backend restart removes forgotten runs while installed skills are refreshe
   assert.deepEqual(engine.getSnapshot().runs, {});
   assert.equal(engine.getSnapshot().skills[0].name, "ssh_parser");
 });
+
+test("reconnect recovers missed terminal events from the last contiguous cursor and refreshes skills", async (t) => {
+  let afterReconnect = false;
+  let skillRequests = 0;
+  const cursors = [];
+  const { engine, sockets } = fixture(t, {
+    listRuns: async () => ({ runs: [{ run_id: "run_abcdefgh", created_at: event(1).timestamp, status: "approved" }] }),
+    events: async (_, cursor) => {
+      cursors.push(cursor);
+      return { events: afterReconnect ? [event(2, "rule_approved")] : [event(1)] };
+    },
+    skills: async () => { skillRequests++; return { skills: afterReconnect ? [{ name: "new_api_skill", version: 1 }] : [] }; },
+  });
+  const { runStatus } = productionModule("lib/derive.ts");
+  sockets[0].open();
+  await settle();
+  assert.equal(runStatus(engine.getSnapshot().runs.run_abcdefgh), "running", "HTTP status must not replace event-derived state");
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  sockets[0].onclose();
+  assert.equal(engine.getSnapshot().connection, "reconnecting");
+  afterReconnect = true;
+  t.mock.timers.tick(1000);
+  assert.equal(sockets.length, 2);
+  sockets[1].open();
+  await settle();
+  assert.deepEqual(cursors, [0, 1]);
+  assert.equal(runStatus(engine.getSnapshot().runs.run_abcdefgh), "approved");
+  assert.equal(engine.getSnapshot().skills[0].name, "new_api_skill");
+  assert.equal(skillRequests, 2);
+  assert.equal(engine.getSnapshot().connection, "open");
+});
+
+test("history sync displays the backend error and retries without discarding buffered events", async (t) => {
+  let attempts = 0;
+  const { engine, sockets } = fixture(t, {
+    listRuns: async () => {
+      if (++attempts === 1) throw new ApiError(503, "INTERNAL_ERROR", "Backend is temporarily unavailable.");
+      return { runs: [{ run_id: "run_abcdefgh", created_at: event(1).timestamp }] };
+    },
+    events: async () => ({ events: [event(1)] }),
+  });
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  sockets[0].open();
+  sockets[0].receive(event(2, "plan_ready"));
+  await settle();
+  assert.equal(engine.getSnapshot().loaded, false);
+  assert.equal(engine.getSnapshot().syncError, "Backend is temporarily unavailable.");
+  t.mock.timers.tick(3000);
+  await settle();
+  assert.equal(engine.getSnapshot().syncError, null);
+  assert.equal(engine.getSnapshot().loaded, true);
+  assert.deepEqual(engine.getSnapshot().runs.run_abcdefgh.events.map((value) => value.seq), [1, 2]);
+});

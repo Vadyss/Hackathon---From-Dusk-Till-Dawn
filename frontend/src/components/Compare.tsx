@@ -1,17 +1,16 @@
-import { dataOf, formatDuration, lastOf, runRequest, runStatus } from "@/lib/derive";
+import { dataOf, formatCost, formatDuration, formatNumber, lastOf, runRequest, runStatus } from "@/lib/derive";
 import type { RunState } from "@/lib/engine";
 import type { RunStats } from "@/lib/types";
 
 type Row = { key: keyof RunStats; label: string; fmt: (v: number | null | undefined) => string; lowerIsBetter: boolean };
 
-const num = (v: number | null | undefined) => (typeof v === "number" ? v.toLocaleString("en-GB") : "—");
-
 const ROWS: Row[] = [
   { key: "duration_ms", label: "Duration", fmt: formatDuration, lowerIsBetter: true },
-  { key: "llm_calls", label: "LLM calls", fmt: num, lowerIsBetter: true },
-  { key: "tokens_total", label: "Tokens", fmt: num, lowerIsBetter: true },
-  { key: "skills_built", label: "Skills built", fmt: num, lowerIsBetter: true },
-  { key: "skills_reused", label: "Skills reused", fmt: num, lowerIsBetter: false },
+  { key: "llm_calls", label: "LLM calls", fmt: formatNumber, lowerIsBetter: true },
+  { key: "tokens_total", label: "Tokens", fmt: formatNumber, lowerIsBetter: true },
+  { key: "cost_usd", label: "Cost (USD)", fmt: formatCost, lowerIsBetter: true },
+  { key: "skills_built", label: "Skills built", fmt: formatNumber, lowerIsBetter: true },
+  { key: "skills_reused", label: "Skills reused", fmt: formatNumber, lowerIsBetter: false },
 ];
 
 function statsOf(run: RunState): Partial<RunStats> | null {

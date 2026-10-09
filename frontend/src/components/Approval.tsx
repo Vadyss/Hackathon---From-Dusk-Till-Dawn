@@ -48,7 +48,7 @@ export function ReviewCard({ run }: { run: RunState }) {
     <div className="overflow-hidden rounded-2xl border border-line">
       <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
         <div className="min-w-0">
-          <div className="text-xs text-subtle">Review detection rule</div>
+          <h2 className="text-xs text-subtle">Approve detection rule</h2>
           <div className="truncate font-mono text-sm font-medium">{ruleName}</div>
         </div>
         <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-warn">
@@ -68,7 +68,7 @@ export function ReviewCard({ run }: { run: RunState }) {
           <CodeBlock value={d.recipe} label={`${ruleName}.json`} />
         </div>
 
-        {newSkills.length > 0 && (
+        {newSkills.length > 0 ? (
           <div>
             <SectionLabel>New skills that will be installed</SectionLabel>
             <ul className="divide-y divide-line rounded-xl border border-line">
@@ -83,7 +83,7 @@ export function ReviewCard({ run }: { run: RunState }) {
               ))}
             </ul>
           </div>
-        )}
+        ) : <p className="text-sm text-muted">No new tools built in this run (reused existing tools)</p>}
       </div>
 
       <div className="border-t border-line bg-surface/50 px-4 py-3">

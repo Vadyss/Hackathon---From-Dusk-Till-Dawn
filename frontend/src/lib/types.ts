@@ -51,6 +51,7 @@ export interface RunStats {
   duration_ms: number;
   llm_calls: number;
   tokens_total: number | null;
+  cost_usd: number | null;
   skills_built: number;
   skills_reused: number;
 }
