@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 // Data types per docs/kontrakt.md (chapters 6, 9, 10).
 // Fields marked [untrusted] are always rendered as plain text.
 
@@ -87,6 +88,7 @@ export interface RunEvent {
 
 // `data` payload of each event type (chapter 10).
 export interface EventDataMap {
+  llm_usage: UsageData;
   run_started: { request: string };
   plan_ready: { steps: string[]; skills_needed: string[] };
   skill_reused: { skill: SkillInfo };
@@ -131,6 +133,30 @@ export interface EventDataMap {
     violations: { code: string; detail: string }[];
   };
   run_failed: { reason_code: string; reason: string };
+}
+
+export interface UsageRecord {
+  run_id: string; call_id: number; step: string; iteration: number; attempt: number;
+  model: string; input_tokens: number | null; cached_tokens: number | null;
+  output_tokens: number | null; total_tokens: number | null; cache_write_tokens: number | null;
+  cost_usd: string | null; cost_source: string; currency: "USD";
+  duration_ms: number; timestamp: string; estimated: boolean; retry: boolean;
+  status: string; warning: string | null;
+}
+export interface UsageStep {
+  step: string; calls: number; retries: number; cost_usd: string | null; share_percent: string | null;
+}
+export interface UsageTotals {
+  calls: number; total_tokens: number | null; known_tokens: number; cost_usd: string | null;
+  known_cost_usd: string; unknown_cost_calls: number; estimated_calls: number;
+  calculated_cost_calls: number; retries: number; steps: UsageStep[];
+}
+export interface UsageSummary {
+  totals: UsageTotals; most_expensive_step: string | null; average_cost_usd: string | null;
+  average_run_count: number; observations: string[];
+}
+export interface UsageData {
+  kind: "call" | "summary"; record: UsageRecord | null; totals: UsageTotals; summary: UsageSummary | null;
 }
 
 export type KnownEventType = keyof EventDataMap;

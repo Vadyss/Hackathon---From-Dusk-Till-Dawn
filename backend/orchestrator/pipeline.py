@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """Bounded proposal → deterministic checks → independent validation → approval."""
 from __future__ import annotations
 
@@ -9,6 +10,7 @@ from orchestrator.llm import LlmBudgetExceeded, LlmError, bind_run_counters, res
 from orchestrator.run_store import PendingApproval
 from orchestrator.sandbox_messages import present_sandbox_error
 from orchestrator.text import clip
+from orchestrator.usage import UsageLedger
 
 logger = logging.getLogger(__name__)
 
@@ -24,13 +26,25 @@ REASONS = {
 
 async def run_pipeline(run, gk, roles, emitter, settings, voice=None):
     context = {"phase": "intake", "recipe": None}
-    token = bind_run_counters(run.stats, run_id=run.run_id)
+    async def publish_usage(data):
+        await emitter.emit(run, "llm_usage", context["phase"], data)
+
+    usage = UsageLedger(run.run_id, settings.data_dir, publish_usage)
+    token = bind_run_counters(run.stats, run_id=run.run_id, usage=usage)
+
+    async def finish_usage():
+        if usage.pending:
+            await asyncio.gather(*usage.pending)
+            usage.pending.clear()
+        if usage.summary is None:
+            await publish_usage(usage.finish())
 
     async def fail(reason_code, reason=None):
         if not run.events:
             await emitter.emit(run, "run_started", "intake", {"request": run.request})
         if run.status in {"running", "awaiting_approval"}:
             text = clip(reason or REASONS.get(reason_code, "The request cannot be processed."), 500)
+            await finish_usage()
             await emitter.emit(run, "run_failed", context["phase"], {"reason_code": reason_code, "reason": text})
             gk.record_failure(run.run_id, reason_code, text, context["recipe"])
 
@@ -132,6 +146,7 @@ async def run_pipeline(run, gk, roles, emitter, settings, voice=None):
         except Exception:
             logger.warning("The summary will use a template.")
             summary = f"Built {run.stats.skills_built} skills, reused {run.stats.skills_reused}. Rule passed tuning and validation and is awaiting approval."
+        await finish_usage()
         stats = run.stats.snapshot()
         await emitter.emit(run, "summary", "approval", {"text": summary, "stats": stats})
         if voice and voice.enabled:

@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """Bounded, process-local run history and atomic intake."""
 from __future__ import annotations
 
@@ -7,6 +8,7 @@ import secrets
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Any
 
 from orchestrator.api_errors import ApiError
@@ -25,7 +27,7 @@ def now_iso() -> str:
 class RunCounters:
     llm_calls: int = 0
     tokens_total: int | None = None
-    cost_usd: float | None = None
+    cost_usd: Decimal | None = None
     skills_built: int = 0
     skills_reused: int = 0
     started_monotonic: float = field(default_factory=time.monotonic)

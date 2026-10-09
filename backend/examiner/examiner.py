@@ -1,8 +1,9 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """Independent examiner: only an attack description and a format enter it."""
 from __future__ import annotations
 
 from gatekeeper.types import ParseFailure
-from orchestrator.llm import LlmBudgetExceeded, LlmClient, LlmError, extract_json, prompt_for, untrusted
+from orchestrator.llm import LlmBudgetExceeded, LlmClient, LlmError, UsageIteration, extract_json, prompt_for, untrusted
 
 
 class Examiner:
@@ -18,12 +19,15 @@ class Examiner:
         user = untrusted("attack_description", attack_description) + "\n" + untrusted("log_format", log_format)
         for attempt in range(2):
             repair = "\nReturn only valid JSON matching {\"code\":\"Python source\"}, with no additional text." if attempt else ""
+            usage_token = UsageIteration.set(attempt + 1)
             try:
                 response = await self.client.chat("examiner", self.system, user + repair, context=None)
             except LlmBudgetExceeded:
                 raise
             except LlmError:
                 return ParseFailure("The examiner could not prepare a data generator.")
+            finally:
+                UsageIteration.reset(usage_token)
             result = response if isinstance(response, ParseFailure) else extract_json(response.text)
             if isinstance(result, dict):
                 code = result.get("code")

@@ -1,0 +1,28 @@
+{
+  "note": "Inference prices only. Apify rounds each paid-plan charge up to $0.00001; free-plan markup and relay hosting are excluded. Prefer response usage.cost. Unknown routed prices must not be guessed.",
+  "billing_source_url": "https://apify.com/apify/openrouter",
+  "models": {
+    "anthropic/claude-sonnet-5.5": {
+      "input_per_million": "2.00",
+      "cached_input_per_million": "0.20",
+      "output_per_million": "10.00",
+      "cache_write_per_million": "2.50",
+      "currency": "USD",
+      "source_url": "https://www.anthropic.com/claude-sonnet-5-5",
+      "last_verified": "2026-10-09",
+      "todo": null,
+      "routing_reference_url": "https://openrouter.ai/anthropic/claude-sonnet-5.5/providers"
+    },
+    "deepseek/deepseek-v4.1-flash": {
+      "input_per_million": null,
+      "cached_input_per_million": null,
+      "output_per_million": null,
+      "currency": "USD",
+      "source_url": "https://api-docs.deepseek.com/quick_start/pricing/",
+      "last_verified": null,
+      "todo": "TODO: verify prices for the actual OpenRouter routed endpoint. Published endpoints and direct peak/off-peak prices differ; use reported usage.cost.",
+      "last_checked": "2026-10-09",
+      "routing_reference_url": "https://openrouter.ai/deepseek/deepseek-v4.1-flash/providers"
+    }
+  }
+}

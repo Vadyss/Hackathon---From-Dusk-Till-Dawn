@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """The exact frontend contract v1, including every event payload."""
 from __future__ import annotations
 
@@ -185,7 +186,67 @@ class RunFailedData(ContractModel):
     reason: str
 
 
+class UsageRecordData(ContractModel):
+    run_id: str = Field(pattern=r"^run_[a-z0-9]{4,32}$")
+    call_id: int = Field(ge=1)
+    step: str
+    iteration: int = Field(ge=1)
+    attempt: int = Field(ge=1)
+    model: str
+    input_tokens: int | None = Field(ge=0)
+    cached_tokens: int | None = Field(ge=0)
+    output_tokens: int | None = Field(ge=0)
+    cache_write_tokens: int | None = Field(ge=0)
+    total_tokens: int | None = Field(ge=0)
+    cost_usd: str | None = Field(pattern=r"^\d+(?:\.\d+)?$")
+    cost_source: Literal["provider", "pricing", "mock", "unknown"]
+    currency: Literal["USD"]
+    duration_ms: int = Field(ge=0)
+    timestamp: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
+    estimated: bool
+    retry: bool
+    status: Literal["success", "error"]
+    warning: str | None
+
+
+class UsageStepData(ContractModel):
+    step: str
+    calls: int = Field(ge=0)
+    retries: int = Field(ge=0)
+    cost_usd: str | None = Field(pattern=r"^\d+(?:\.\d+)?$")
+    share_percent: str | None = Field(pattern=r"^\d+(?:\.\d+)?$")
+
+
+class UsageTotalsData(ContractModel):
+    calls: int = Field(ge=0)
+    total_tokens: int | None = Field(ge=0)
+    known_tokens: int = Field(ge=0)
+    cost_usd: str | None = Field(pattern=r"^\d+(?:\.\d+)?$")
+    known_cost_usd: str = Field(pattern=r"^\d+(?:\.\d+)?$")
+    unknown_cost_calls: int = Field(ge=0)
+    estimated_calls: int = Field(ge=0)
+    calculated_cost_calls: int = Field(ge=0)
+    retries: int = Field(ge=0)
+    steps: list[UsageStepData]
+
+
+class UsageSummaryData(ContractModel):
+    totals: UsageTotalsData
+    most_expensive_step: str | None
+    average_cost_usd: str | None = Field(pattern=r"^\d+(?:\.\d+)?$")
+    average_run_count: int = Field(ge=0)
+    observations: list[str] = Field(min_length=1, max_length=3)
+
+
+class LlmUsageData(ContractModel):
+    kind: Literal["call", "summary"]
+    record: UsageRecordData | None
+    totals: UsageTotalsData
+    summary: UsageSummaryData | None
+
+
 DATA_MODELS = {
+    "llm_usage": LlmUsageData,
     "run_started": RunStartedData, "plan_ready": PlanReadyData,
     "skill_reused": SkillReusedData, "capability_missing": CapabilityMissingData,
     "forge_started": ForgeStartedData, "skill_tests_failed": SkillTestsFailedData,
@@ -203,7 +264,7 @@ class EventEnvelope(ContractModel):
                   "forge_started", "skill_tests_failed", "skill_candidate_ready",
                   "rule_drafted", "rule_evaluated", "validation_done", "summary",
                   "voice_ready", "awaiting_approval", "skill_installed", "rule_approved",
-                  "rule_rejected", "policy_rejected", "run_failed"]
+                  "rule_rejected", "policy_rejected", "run_failed", "llm_usage"]
     run_id: str = Field(pattern=r"^run_[a-z0-9]{4,32}$")
     seq: int = Field(ge=1)
     timestamp: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")

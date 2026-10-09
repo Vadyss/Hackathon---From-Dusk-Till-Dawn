@@ -1,7 +1,9 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """Provider-reported USD cost is counted without changing model parsing or policy."""
 from __future__ import annotations
 
 import json
+from decimal import Decimal
 
 import httpx
 import pytest
@@ -46,7 +48,7 @@ async def chat_responses(responses):
 
 async def test_cost_sums_all_reported_responses_and_reaches_summary_stats():
     stats, _ = await chat_responses([response(.0123), response(.0456), response(include_cost=False)])
-    assert stats.cost_usd == pytest.approx(.0579)
+    assert stats.cost_usd == Decimal("0.0579")
     assert stats.snapshot()["cost_usd"] == pytest.approx(.0579)
     assert stats.llm_calls == 3 and stats.tokens_total == 21
 
@@ -56,7 +58,7 @@ async def test_cost_counts_empty_answer_and_automatic_length_retry():
         response(.02, content=None, finish_reason="length"), response(.03),
         response(.04, content="", finish_reason="stop"),
     ])
-    assert stats.cost_usd == pytest.approx(.09)
+    assert stats.cost_usd == Decimal("0.09")
     assert stats.llm_calls == 3
     assert len(results) == 2 and isinstance(results[-1], ParseFailure)
 
@@ -73,7 +75,7 @@ async def test_zero_cost_is_known_and_run_accounting_is_isolated():
     first, _ = await chat_responses([response(.7)])
     second, _ = await chat_responses([response(0)])
     third, _ = await chat_responses([response(include_cost=False)])
-    assert first.cost_usd == .7
+    assert first.cost_usd == Decimal("0.7")
     assert second.cost_usd == 0.0
     assert third.cost_usd is None
 
@@ -105,7 +107,7 @@ def test_sync_compatibility_client_also_counts_cost(monkeypatch):
         assert ask("test input") == "{}"
     finally:
         reset_run_counters(binding)
-    assert stats.cost_usd == .025 and stats.llm_calls == 1
+    assert stats.cost_usd == Decimal("0.025") and stats.llm_calls == 1
 
 
 @pytest.mark.parametrize("cost", [-1, float("nan"), float("inf")])
