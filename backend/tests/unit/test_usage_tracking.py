@@ -189,3 +189,30 @@ async def test_examiner_repairs_have_distinct_iterations_and_report_actual_model
         assert all(r["model"] == "deepseek/deepseek-v4.1-flash" for r in client.usage.records)
     finally:
         await client.close()
+
+
+def test_no_call_run_has_exact_zero_totals_and_is_included_in_average(tmp_path):
+    summary = UsageLedger("run_empty", tmp_path).finish()["summary"]
+    assert summary["totals"]["total_tokens"] == 0
+    assert summary["totals"]["cost_usd"] == "0"
+    assert summary["most_expensive_step"] is None
+    assert summary["average_run_count"] == 1 and summary["average_cost_usd"] == "0"
+    assert summary["observations"] == ["No model calls were made."]
+
+
+def test_legacy_sync_call_publishes_usage_even_with_no_running_loop(monkeypatch):
+    from orchestrator.llm import ask
+    emitted = []
+    async def publish(event): emitted.append(event)
+    ledger = UsageLedger("run_legacy", publish=publish)
+    settings = Settings(llm_provider="openai_compatible", llm_api_key="test-key")
+    monkeypatch.setattr(Settings, "from_env", lambda **kwargs: settings)
+    monkeypatch.setattr("orchestrator.llm.requests.post", lambda *args, **kwargs: httpx.Response(200,
+        json={"choices": [{"message": {"content": "ok"}}], "usage": {"total_tokens": 15, "cost": .001}}))
+    binding = bind_run_counters(RunCounters(), "run_legacy", usage=ledger)
+    try:
+        assert ask("test input") == "ok"
+    finally:
+        reset_run_counters(binding)
+    assert len(emitted) == 1 and emitted[0]["record"]["step"] == "legacy"
+    assert emitted[0]["record"]["cost_usd"] == "0.001"

@@ -20,8 +20,9 @@
       "currency": "USD",
       "source_url": "https://openrouter.ai/deepseek/deepseek-v4.1-flash/providers",
       "manufacturer_source_url": "https://api-docs.deepseek.com/quick_start/pricing/",
-      "last_verified": "2026-10-09",
-      "todo": "TODO: verify prices for the actual OpenRouter routed endpoint. Published endpoints and direct peak/off-peak prices differ; use reported usage.cost."
+      "last_verified": null,
+      "todo": "TODO: verify prices for the actual OpenRouter routed endpoint. Published endpoints and direct peak/off-peak prices differ; use reported usage.cost.",
+      "last_checked": "2026-10-09"
     }
   }
 }

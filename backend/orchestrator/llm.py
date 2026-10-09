@@ -177,10 +177,13 @@ def _tracked_sync_post(url, *, ledger, model, system, user, attempt, pricing_all
                 loop = asyncio.get_running_loop()
             except RuntimeError:
                 loop = None
-            if loop is ledger.loop:
+            if loop is not None and (ledger.loop is None or loop is ledger.loop):
+                ledger.loop = loop
                 ledger.pending.append(loop.create_task(ledger.publish(event)))
             elif ledger.loop is not None:
                 asyncio.run_coroutine_threadsafe(ledger.publish(event), ledger.loop).result()
+            else:
+                asyncio.run(ledger.publish(event))
 
 
 def track_mock_call(method):

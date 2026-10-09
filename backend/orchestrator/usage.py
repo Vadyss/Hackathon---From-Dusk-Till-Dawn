@@ -102,7 +102,10 @@ class UsageLedger:
         self.records = []
         self.publish = publish
         self.pending = []
-        self.loop = asyncio.get_running_loop() if publish is not None else None
+        try:
+            self.loop = asyncio.get_running_loop() if publish is not None else None
+        except RuntimeError:
+            self.loop = None
         self.summary = None
         self.store = UsageStore(data_dir, run_id) if data_dir is not None else None
         self.path = self.store.path if self.store else None
@@ -124,7 +127,7 @@ class UsageLedger:
             steps.append({"step": step, "calls": len(records), "retries": sum(r["retry"] for r in records),
                           "cost_usd": decimal_text(cost),
                           "share_percent": decimal_text((cost * 100 / total_cost).quantize(Decimal("0.1"))) if cost is not None and total_cost else None})
-        complete = bool(self.records) and all(r["total_tokens"] is not None for r in self.records)
+        complete = all(r["total_tokens"] is not None for r in self.records)
         return {"calls": len(self.records), "total_tokens": sum(r["total_tokens"] for r in self.records) if complete else None,
                 "known_tokens": sum(r["total_tokens"] or 0 for r in self.records),
                 "cost_usd": decimal_text(total_cost), "known_cost_usd": decimal_text(known), "unknown_cost_calls": unknown,
@@ -135,7 +138,7 @@ class UsageLedger:
     def finish(self):
         totals = self.aggregate()
         ranked = [s for s in totals["steps"] if s["cost_usd"] is not None]
-        most = max(ranked, key=lambda s: money(s["cost_usd"]), default=None) if not totals["unknown_cost_calls"] else None
+        most = max(ranked, key=lambda s: money(s["cost_usd"]), default=None) if not totals["unknown_cost_calls"] and money(totals["cost_usd"]) else None
         costs = []
         if self.path and self.path.parent.parent.exists():
             for path in self.path.parent.parent.glob("run_*/usage.json"):
@@ -147,7 +150,7 @@ class UsageLedger:
                         costs.append(money(previous["totals"]["cost_usd"]))
                 except (OSError, ValueError, KeyError, TypeError):
                     logger.warning("A saved usage summary could not be read.")
-        if totals["calls"] and totals["cost_usd"] is not None:
+        if totals["cost_usd"] is not None:
             costs.append(money(totals["cost_usd"]))
         costs = [c for c in costs if c is not None]
         observations = []
@@ -162,7 +165,7 @@ class UsageLedger:
         if totals["estimated_calls"]:
             observations.append(f"Token usage was estimated for {totals['estimated_calls']} calls.")
         if not observations:
-            observations.append("No retries were needed.")
+            observations.append("No model calls were made." if not totals["calls"] else "No retries were needed.")
         self.summary = {"totals": totals, "most_expensive_step": most["step"] if most else None,
                         "average_cost_usd": decimal_text(sum(costs, Decimal(0)) / len(costs)) if costs else None,
                         "average_run_count": len(costs), "observations": observations[:3]}
