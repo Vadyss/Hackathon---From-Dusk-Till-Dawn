@@ -11,6 +11,7 @@ from tests.e2e.test_scenarios import A, assert_sequence, start
     ("ImportError: Zakázaný import: socket.", "ImportError: Forbidden import: socket."),
     ("Zakázaný import: urllib.request.", "Forbidden import: urllib.request."),
     ("Překročen časový limit.", "Time limit exceeded."),
+    ("Úlohu nelze serializovat do JSON.", "The job cannot be serialized as JSON."),
     ("PermissionError: Sandbox nepovoluje přístup k souborům.", "PermissionError: Sandbox does not allow file access."),
     ("TypeError: Výstup dovednosti musí být seznam.", "TypeError: The skill output must be a list."),
     ("ValueError: Výstup překračuje limit 10 MB.", "ValueError: The output exceeds the 10 MB limit."),

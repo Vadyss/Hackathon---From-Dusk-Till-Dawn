@@ -14,6 +14,7 @@ _MESSAGES = {
     "Neplatný vstup nebo parametry.": "Invalid inputs or parameters.",
     "Import není v bezpečném seznamu modulů.": "The import is not in the allowed module list.",
     "Časový limit musí být větší než 0 a nejvýš 30 sekund.": "Timeout must be greater than 0 and at most 30 seconds.",
+    "Úlohu nelze serializovat do JSON.": "The job cannot be serialized as JSON.",
     "Úloha překračuje limit velikosti vstupu.": "The job exceeds the input size limit.",
     "Překročen časový limit.": "Time limit exceeded.",
     "Výstup překračuje limit velikosti.": "The output exceeds the size limit.",
