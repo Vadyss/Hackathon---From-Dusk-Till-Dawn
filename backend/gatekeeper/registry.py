@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """The sole writer of skill artifacts, candidates and approved rule files."""
 from __future__ import annotations
 
@@ -410,3 +411,30 @@ class Registry:
         with self.lock:
             folder = self._candidate_path(run_id)
             if folder.exists(): shutil.rmtree(folder)
+
+
+class UsageStore:
+    """Atomic metadata snapshots; never modifies skills, recipes or audit records."""
+    def __init__(self, data_dir: Path, run_id: str):
+        require_run_id(run_id)
+        self.run_id = run_id
+        self.root = Path(data_dir).resolve()
+        self.path = self.root / "runs" / run_id / "usage.json"
+
+    def save(self, payload: dict) -> None:
+        if set(payload) != {"run_id", "records", "summary"} or payload["run_id"] != self.run_id:
+            raise ValueError("Invalid usage snapshot.")
+        for path in (self.root / "runs", self.path.parent, self.path):
+            if path.is_symlink():
+                raise ValueError("Usage storage must not contain symbolic links.")
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = self.path.parent / (".usage-" + uuid.uuid4().hex + ".tmp")
+        try:
+            with os.fdopen(os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w") as file:
+                json.dump(payload, file, ensure_ascii=False, allow_nan=False)
+                file.flush()
+                os.fsync(file.fileno())
+            os.replace(temporary, self.path)
+        finally:
+            if temporary.exists():
+                temporary.unlink()

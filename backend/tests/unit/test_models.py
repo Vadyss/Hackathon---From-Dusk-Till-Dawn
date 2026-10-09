@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 from __future__ import annotations
 
 import json
@@ -18,7 +19,7 @@ def test_every_contract_payload_example_is_accepted():
         for sample in re.findall(r"```json\s*(.*?)\s*```", content, re.S):
             DATA_MODELS[name].model_validate(json.loads(sample))
             count += 1
-    assert count == 17
+    assert count == 18
 
 
 def test_null_metrics_and_exact_fields():

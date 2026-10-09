@@ -1,17 +1,21 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """LLM transport, bounded retries, per-run accounting and JSON extraction."""
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
-import math
 import time
+from datetime import datetime, timezone
+from functools import wraps
 from contextvars import ContextVar, Token
 from dataclasses import dataclass
 from functools import lru_cache
 from html import escape
 from pathlib import Path
 from typing import Any, Protocol
+
+from .usage import UsageLedger, calculate_cost, decimal_text, money, prices, response_usage
 
 import httpx
 import requests
@@ -22,6 +26,8 @@ BASE_URL = "https://piquant-peacoat--llm-relay.apify.actor/v1"
 MODEL = "anthropic/claude-sonnet-5.5"
 logger = logging.getLogger(__name__)
 LlmBudget: ContextVar[Any | None] = ContextVar("llm_run_counters", default=None)
+LlmUsage: ContextVar[UsageLedger | None] = ContextVar("llm_usage", default=None)
+UsageIteration: ContextVar[int] = ContextVar("llm_usage_iteration", default=1)
 
 
 @dataclass
@@ -38,6 +44,7 @@ LlmProviderState: ContextVar[ProviderState | None] = ContextVar("llm_provider_st
 class RunBinding:
     counters: Token
     provider: Token
+    usage: Token
 
 
 class LlmError(Exception):
@@ -61,13 +68,15 @@ class LlmClient(Protocol):
     async def close(self) -> None: ...
 
 
-def bind_run_counters(counters: Any, run_id: str = "unbound") -> RunBinding:
-    return RunBinding(LlmBudget.set(counters), LlmProviderState.set(ProviderState(run_id=run_id)))
+def bind_run_counters(counters: Any, run_id: str = "unbound", *, usage: UsageLedger | None = None) -> RunBinding:
+    return RunBinding(LlmBudget.set(counters), LlmProviderState.set(ProviderState(run_id=run_id)),
+                      LlmUsage.set(usage or UsageLedger(run_id)))
 
 
 def reset_run_counters(token: RunBinding) -> None:
     LlmBudget.reset(token.counters)
     LlmProviderState.reset(token.provider)
+    LlmUsage.reset(token.usage)
 
 
 def count_call(max_calls: int) -> None:
@@ -84,12 +93,115 @@ def count_tokens(tokens: int | None) -> None:
         counters.tokens_total = (counters.tokens_total or 0) + tokens
 
 
-def count_cost(cost: float | None) -> None:
+def count_cost(cost) -> None:
     counters = LlmBudget.get()
     if counters is not None and cost is not None:
-        total = (getattr(counters, "cost_usd", None) or 0.0) + cost
-        if math.isfinite(total):
-            counters.cost_usd = total
+        counters.cost_usd = (money(getattr(counters, "cost_usd", None)) or money(0)) + cost
+
+
+def _capture_usage(ledger, role, model, system, user, response, started, attempt, context=None, *, mock_text=None, pricing_allowed=True):
+    data = None
+    if response is not None and len(response.content) <= 2_000_000:
+        try:
+            data = json.loads(response.content, parse_float=money)
+        except (ValueError, UnicodeError):
+            pass
+    if mock_text is not None:
+        data = {"choices": [{"message": {"content": mock_text}}]}
+    if isinstance(data, dict) and isinstance(data.get("model"), str) and data["model"].strip():
+        model = data["model"]
+    succeeded = mock_text is not None or response is not None and 200 <= response.status_code < 300
+    usage, reported_cost = response_usage(data, system, user, succeeded=succeeded)
+    context = context or {}
+    iteration = context.get("attempt", UsageIteration.get())
+    cost = reported_cost
+    source = "provider" if cost is not None else "unknown"
+    if model == "mock" and mock_text is not None:
+        cost, source = money(0), "mock"
+    elif cost is None and succeeded and pricing_allowed:
+        cost = calculate_cost(model, usage["input_tokens"], usage["cached_tokens"], usage["output_tokens"],
+                              cache_write_tokens=usage["cache_write_tokens"])
+        if cost is not None:
+            source = "pricing"
+    # Existing summary.stats retains provider-only token semantics. The usage
+    # event includes estimates separately and never overwrites real counts.
+    real_tokens = _usage_tokens(data)
+    if real_tokens is None and not usage["estimated"]:
+        real_tokens = usage["total_tokens"]
+    count_tokens(real_tokens)
+    count_cost(cost)
+    warning = None
+    if cost is None:
+        warning = "Cost is unknown: provider cost or verified pricing is unavailable."
+    elif source == "pricing":
+        warning = "Cost is calculated from published rates, not a provider charge."
+    elif source == "provider" and (not prices().get(model) or prices()[model].get("todo")):
+        warning = "Fallback pricing is unverified; this cost was reported by the provider."
+    record = dict(step=role, iteration=iteration, attempt=attempt, model=model,
+                  **usage, cost_usd=decimal_text(cost), cost_source=source, currency="USD",
+                  duration_ms=max(0, int((time.monotonic() - started) * 1000)),
+                  timestamp=datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+                  retry=attempt > 1 or iteration > 1 or bool(context.get("repair")),
+                  status="success" if succeeded else "error", warning=warning)
+    if warning:
+        logger.warning("LLM usage run_id=%s step=%s model=%s: %s", ledger.run_id, role, model, warning)
+    return ledger.append(record)
+
+
+def _priced_access(settings):
+    return settings.llm_provider == "apify" and settings.llm_base_url.rstrip("/") == BASE_URL
+
+
+async def _tracked_post(http, url, *, ledger, role, model, system, user, attempt, context, pricing_allowed, **kwargs):
+    response = None
+    started = time.monotonic()
+    try:
+        response = await http.post(url, **kwargs)
+        return response
+    finally:
+        event = _capture_usage(ledger, role, model, system, user, response, started, attempt, context, pricing_allowed=pricing_allowed)
+        if ledger.publish:
+            await ledger.publish(event)
+
+
+def _tracked_sync_post(url, *, ledger, model, system, user, attempt, pricing_allowed, **kwargs):
+    response = None
+    started = time.monotonic()
+    try:
+        response = requests.post(url, **kwargs)
+        return response
+    finally:
+        event = _capture_usage(ledger, "legacy", model, system, user, response, started, attempt, pricing_allowed=pricing_allowed)
+        if ledger.publish:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+            if loop is ledger.loop:
+                ledger.pending.append(loop.create_task(ledger.publish(event)))
+            elif ledger.loop is not None:
+                asyncio.run_coroutine_threadsafe(ledger.publish(event), ledger.loop).result()
+
+
+def track_mock_call(method):
+    """Mocks share the central ledger without changing their proposals."""
+    @wraps(method)
+    async def tracked(self, role, system, user, **kwargs):
+        started = time.monotonic()
+        result = None
+        counters = LlmBudget.get()
+        previous_calls = counters.llm_calls if counters is not None else None
+        try:
+            result = await method(self, role, system, user, **kwargs)
+            return result
+        finally:
+            if counters is None or counters.llm_calls != previous_calls:
+                ledger = LlmUsage.get() or self.usage
+                event = _capture_usage(ledger, role, "mock", system, user, None, started, 1,
+                                       kwargs.get("context"), mock_text=result.text if isinstance(result, LlmResult) else None)
+                if ledger.publish:
+                    await ledger.publish(event)
+    return tracked
 
 
 def _strict_json(text: str):
@@ -146,18 +258,6 @@ def _usage_tokens(data: Any) -> int | None:
     return tokens if type(tokens) is int and tokens >= 0 else None
 
 
-def _usage_cost(data: Any) -> float | None:
-    usage = data.get("usage") if isinstance(data, dict) else None
-    cost = usage.get("cost") if isinstance(usage, dict) else None
-    if type(cost) not in (int, float):
-        return None
-    try:
-        cost = float(cost)
-    except OverflowError:
-        return None
-    return cost if math.isfinite(cost) and cost >= 0 else None
-
-
 def _result(data: dict, model: str) -> LlmResult | ParseFailure:
     try:
         content = data["choices"][0]["message"]["content"]
@@ -198,8 +298,6 @@ def _response_data(response, settings, state: ProviderState, model: str) -> tupl
         data = response.json()
     except ValueError:
         raise LlmError("The provider returned an invalid response.") from None
-    count_tokens(_usage_tokens(data))
-    count_cost(_usage_cost(data))
     result = _result(data, model)
     _provider_succeeded(settings, state, model)
     return data, result
@@ -225,6 +323,7 @@ class HttpLlmClient:
         self._http = httpx.AsyncClient(timeout=settings.llm_timeout_s, transport=transport,
                                        follow_redirects=False, trust_env=False)
         self._standalone_state = ProviderState()
+        self.usage = UsageLedger()
 
     def _model(self, role: str) -> str:
         state = LlmProviderState.get() or self._standalone_state
@@ -245,13 +344,16 @@ class HttpLlmClient:
         started = time.monotonic()
         attempt = 0
         length_retried = False
+        network_attempt = 0
         while True:
             model = self._model(role)
             payload["model"] = model
             count_call(self.settings.llm_max_calls_per_run)
+            network_attempt += 1
             try:
-                response = await self._http.post(self.settings.llm_base_url.rstrip("/") + "/chat/completions",
-                                                 headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"}, json=payload)
+                response = await _tracked_post(self._http, self.settings.llm_base_url.rstrip("/") + "/chat/completions",
+                                                 ledger=LlmUsage.get() or self.usage, role=role, model=model, system=system, user=user,
+                                                 attempt=network_attempt, context=context, pricing_allowed=_priced_access(self.settings), headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"}, json=payload)
                 retry = response.status_code == 429 or response.status_code >= 500
                 if not 200 <= response.status_code < 300:
                     logger.warning("LLM provider_error run_id=%s role=%s model=%s category=http status=%d",
@@ -357,11 +459,15 @@ def ask(prompt: str, system: str | None = None, model: str | None = None) -> str
     token_limit = settings.llm_max_tokens
     length_retried = False
     attempt = 0
+    network_attempt = 0
+    ledger = LlmUsage.get() or UsageLedger()
     while True:
         model = settings.llm_model_fallback if state.fallback else primary
         count_call(settings.llm_max_calls_per_run)
+        network_attempt += 1
         try:
-            response = requests.post(settings.llm_base_url.rstrip("/") + "/chat/completions",
+            response = _tracked_sync_post(settings.llm_base_url.rstrip("/") + "/chat/completions",
+                                     ledger=ledger, model=model, system=system or "", user=prompt, attempt=network_attempt, pricing_allowed=_priced_access(settings),
                                      headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
                                      json={"model": model, "messages": messages, "max_tokens": token_limit, "temperature": 0.2,
                                            **_reasoning(settings)},

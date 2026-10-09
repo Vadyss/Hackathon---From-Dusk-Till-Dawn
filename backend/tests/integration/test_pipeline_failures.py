@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 from __future__ import annotations
 
 import asyncio
@@ -51,7 +52,7 @@ def test_three_invalid_plans_are_bounded_and_reported(tmp_path):
     settings = replace(Settings(), llm_provider="mock", data_dir=tmp_path)
     with TestClient(create_app(settings=settings, sandbox=InProcessSandbox(), roles=SimpleNamespace(planner=Planner()))) as client:
         _, events = start(client, "hello")
-        assert [e["type"] for e in events] == ["run_started"] + ["policy_rejected"] * 3 + ["run_failed"]
+        assert [e["type"] for e in events] == ["run_started"] + ["policy_rejected"] * 3 + ["llm_usage", "run_failed"]
         assert events[-1]["data"]["reason_code"] == "PLAN_INVALID"
 
 
@@ -87,3 +88,17 @@ def test_summary_failure_uses_fallback(tmp_path):
         _, events = start(client, "inject")
         assert events[-1]["type"] == "awaiting_approval"
         assert "is awaiting approval" in next(e["data"]["text"] for e in events if e["type"] == "summary")
+
+
+def test_failed_run_saves_complete_usage_before_terminal_event(tmp_path):
+    settings = replace(Settings(), llm_provider="mock", mock_delay_ms=0, data_dir=tmp_path,
+                       llm_max_calls_per_run=1)
+    with TestClient(create_app(settings=settings, sandbox=InProcessSandbox())) as client:
+        run_id, events = start(client, "Detect password spraying on SSH.")
+        usage = [e for e in events if e["type"] == "llm_usage"]
+        assert [e["data"]["kind"] for e in usage] == ["call", "summary"]
+        assert events[-2]["type"] == "llm_usage" and events[-1]["type"] == "run_failed"
+        saved = json.loads((tmp_path / "runs" / run_id / "usage.json").read_text())
+        assert len(saved["records"]) == client.app.state.store.get(run_id).stats.llm_calls == 1
+        assert saved["summary"] == usage[-1]["data"]["summary"]
+        assert saved["records"][0]["estimated"] and saved["records"][0]["cost_source"] == "mock"

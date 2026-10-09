@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 from __future__ import annotations
 
 import asyncio
@@ -74,4 +75,4 @@ def test_exact_event_catalog():
     assert EVENT_TYPES == {"run_started", "plan_ready", "skill_reused", "capability_missing", "forge_started",
                            "skill_tests_failed", "skill_candidate_ready", "rule_drafted", "rule_evaluated",
                            "validation_done", "summary", "voice_ready", "awaiting_approval", "skill_installed",
-                           "rule_approved", "rule_rejected", "policy_rejected", "run_failed"}
+                           "rule_approved", "rule_rejected", "policy_rejected", "run_failed", "llm_usage"}

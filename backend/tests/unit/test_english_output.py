@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """English display language must preserve the existing contract identifiers."""
 from __future__ import annotations
 
@@ -10,6 +11,7 @@ from orchestrator.llm_mock import MockLlm, scenario_for
 
 
 EVENT_CASES = [
+    ("llm_usage", {"kind": "call"}, "Model call usage recorded."),
     ("run_started", {}, "A new analyst request was received."),
     ("plan_ready", {"steps": ["Parse logs"], "skills_needed": ["ssh_parser"]},
      "Plan ready: 1 steps, skills ssh_parser."),

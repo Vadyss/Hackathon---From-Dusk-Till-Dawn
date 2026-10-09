@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """Validate, store, then broadcast events under the run lock."""
 from __future__ import annotations
 
@@ -28,7 +29,9 @@ class InternalOrderError(RuntimeError):
 
 def render_message(event_type: str, data: dict) -> str:
     names = lambda values: ", ".join(safe_name(v) for v in values)
-    if event_type == "run_started":
+    if event_type == "llm_usage":
+        text = "Model usage summary is ready." if data["kind"] == "summary" else "Model call usage recorded."
+    elif event_type == "run_started":
         text = "A new analyst request was received."
     elif event_type == "plan_ready":
         text = f"Plan ready: {len(data['steps'])} steps, skills {names(data['skills_needed'])}."

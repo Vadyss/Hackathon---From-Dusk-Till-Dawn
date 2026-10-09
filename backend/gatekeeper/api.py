@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """Public boundary: proposals in, deterministic verdicts out."""
 from __future__ import annotations
 
@@ -15,7 +16,7 @@ from .names import require_run_id, violations_unique, valid_name, clip
 from .plan_check import check_plan
 from .policy import load_policy
 from .recipe import check_recipe, display_recipe
-from .registry import IntegrityError, Registry, recipe_sha256
+from .registry import IntegrityError, Registry, UsageStore, recipe_sha256
 from .sandbox_client import SandboxClient
 from .static_analysis import analyze_code
 from .types import GatekeeperConfig, ParseFailure, PlanVerdict, SkillVerdict, Violation

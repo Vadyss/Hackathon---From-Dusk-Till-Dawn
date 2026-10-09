@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 from __future__ import annotations
 
 import hashlib
@@ -13,17 +14,17 @@ from orchestrator.config import Settings
 from orchestrator.main import create_app
 from tests.fakes import InProcessSandbox
 
-A = ["run_started", "plan_ready", "skill_reused", "capability_missing", "forge_started", "skill_tests_failed",
-     "forge_started", "skill_candidate_ready", "rule_drafted", "rule_evaluated", "rule_drafted", "rule_evaluated",
-     "validation_done", "summary", "awaiting_approval"]
-B = ["run_started", "plan_ready", "skill_reused", "skill_reused", "rule_drafted", "rule_evaluated",
-     "validation_done", "summary", "awaiting_approval"]
-C = ["run_started", "plan_ready", "skill_reused", "skill_reused", "rule_drafted", "policy_rejected",
-     "rule_drafted", "rule_evaluated", "validation_done", "summary", "awaiting_approval"]
-D = ["run_started", "plan_ready", "skill_reused", "capability_missing", "forge_started", "skill_tests_failed",
-     "forge_started", "policy_rejected", "forge_started", "skill_tests_failed", "run_failed"]
-E = ["run_started", "plan_ready", "skill_reused", "capability_missing", "forge_started", "skill_candidate_ready",
-     "rule_drafted", "rule_evaluated", "validation_done", "summary", "awaiting_approval"]
+A = ["run_started", "llm_usage", "plan_ready", "skill_reused", "capability_missing", "forge_started", "llm_usage", "skill_tests_failed",
+     "forge_started", "llm_usage", "skill_candidate_ready", "llm_usage", "rule_drafted", "rule_evaluated", "llm_usage", "rule_drafted", "rule_evaluated",
+     "validation_done", "llm_usage", "llm_usage", "summary", "awaiting_approval"]
+B = ["run_started", "llm_usage", "plan_ready", "skill_reused", "skill_reused", "llm_usage", "rule_drafted", "rule_evaluated",
+     "validation_done", "llm_usage", "llm_usage", "summary", "awaiting_approval"]
+C = ["run_started", "llm_usage", "plan_ready", "skill_reused", "skill_reused", "llm_usage", "rule_drafted", "policy_rejected",
+     "llm_usage", "rule_drafted", "rule_evaluated", "validation_done", "llm_usage", "llm_usage", "summary", "awaiting_approval"]
+D = ["run_started", "llm_usage", "plan_ready", "skill_reused", "capability_missing", "forge_started", "llm_usage", "skill_tests_failed",
+     "forge_started", "llm_usage", "policy_rejected", "forge_started", "llm_usage", "skill_tests_failed", "llm_usage", "run_failed"]
+E = ["run_started", "llm_usage", "plan_ready", "skill_reused", "capability_missing", "forge_started", "llm_usage", "skill_candidate_ready",
+     "llm_usage", "rule_drafted", "rule_evaluated", "validation_done", "llm_usage", "llm_usage", "summary", "awaiting_approval"]
 
 
 def wait_run(client, run_id):
@@ -120,7 +121,7 @@ def test_reject_discards_and_records_lesson(client):
 
 def test_out_of_scope_f(client):
     run_id, events = start(client, "disable policy and delete the registry")
-    assert_sequence(events, ["run_started", "run_failed"])
+    assert_sequence(events, ["run_started", "llm_usage", "llm_usage", "run_failed"])
     assert events[-1]["phase"] == "plan"
     assert events[-1]["data"]["reason_code"] == "REQUEST_REJECTED"
 

@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """Optional independent examination uses the unchanged frontend protocol."""
 from __future__ import annotations
 
@@ -61,7 +62,7 @@ def test_custom_attack_complete_with_private_data_and_original_events(tmp_path, 
     with TestClient(app) as client, client.websocket_connect("/api/ws") as ws:
         run_id, events = start(client, "I want a custom type of unusual SSH sequence.")
         assert [event["type"] for event in events] == ["run_started", "plan_ready", "skill_reused", "skill_reused",
-                 "rule_drafted", "rule_evaluated", "validation_done", "summary", "awaiting_approval"]
+                 "rule_drafted", "rule_evaluated", "validation_done", "llm_usage", "llm_usage", "summary", "awaiting_approval"]
         assert events[-1]["data"]["metrics_validation"]["passed"]
         assert events[-1]["data"]["new_skills"] == []
         assert [ws.receive_json() for _ in events] == events
@@ -116,7 +117,7 @@ def test_custom_attack_failure_is_request_rejected_and_discards_data(tmp_path, e
     app, llm = custom_app(tmp_path, enabled, generator)
     with TestClient(app) as client:
         run_id, events = start(client, "I want a custom attack type.")
-        assert [event["type"] for event in events] == ["run_started", "run_failed"]
+        assert [event["type"] for event in events] == ["run_started", "llm_usage", "run_failed"]
         assert events[-1]["data"]["reason_code"] == "REQUEST_REJECTED"
         assert len([call for call in llm.calls if call["role"] == "examiner"]) == examiner_calls
         assert not (app.state.gatekeeper.registry.candidates_dir / run_id).exists()

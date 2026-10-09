@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """Deterministic proposals; real gatekeeper and sandbox decide all outcomes."""
 from __future__ import annotations
 
@@ -6,7 +7,8 @@ import json
 from functools import lru_cache
 from pathlib import Path
 
-from .llm import LlmError, LlmResult, count_call
+from .llm import LlmError, LlmResult, count_call, track_mock_call
+from .usage import UsageLedger
 
 FIXTURES = Path(__file__).resolve().parent / "mock_fixtures"
 
@@ -53,7 +55,9 @@ def manifest(name: str) -> dict:
 class MockLlm:
     def __init__(self, settings):
         self.settings = settings
+        self.usage = UsageLedger()
 
+    @track_mock_call
     async def chat(self, role, system, user, *, max_tokens=None, temperature=0.2, context=None):
         count_call(self.settings.llm_max_calls_per_run)
         if self.settings.mock_delay_ms:

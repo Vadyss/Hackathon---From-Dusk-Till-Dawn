@@ -619,6 +619,74 @@ Konec běhu.
 
 ---
 
+### 10.8 Usage in any active phase (additive, contract version 1)
+
+#### `llm_usage`
+
+Emitted after each LLM request attempt, including transport retries, length retries and JSON repairs. It does not change run status. It is persisted and broadcast using the same sequence rules as other events. Usage is shown in a separate compact table rather than duplicating the activity timeline.
+
+- `kind`: `"call"` or `"summary"`.
+- `record`: the content-free call record below, or `null` for a summary.
+- `totals`: running/final totals; `steps` contains each step's calls, retries, cost and percentage share.
+- `summary`: `null` for a call; at completion contains `totals`, `most_expensive_step`, `average_cost_usd`, `average_run_count` and 1–3 `observations`.
+
+```json
+{
+  "kind": "call",
+  "record": {
+    "run_id": "run_example",
+    "call_id": 1,
+    "step": "planner",
+    "iteration": 1,
+    "attempt": 1,
+    "model": "anthropic/claude-sonnet-5.5",
+    "input_tokens": 1000,
+    "cached_tokens": 200,
+    "output_tokens": 100,
+    "total_tokens": 1100,
+    "cache_write_tokens": 0,
+    "cost_usd": "0.00264",
+    "cost_source": "provider",
+    "currency": "USD",
+    "duration_ms": 1500,
+    "timestamp": "2026-10-09T12:00:00.000Z",
+    "estimated": false,
+    "retry": false,
+    "status": "success",
+    "warning": null
+  },
+  "totals": {
+    "calls": 1,
+    "total_tokens": 1100,
+    "known_tokens": 1100,
+    "cost_usd": "0.00264",
+    "known_cost_usd": "0.00264",
+    "unknown_cost_calls": 0,
+    "estimated_calls": 0,
+    "calculated_cost_calls": 0,
+    "retries": 0,
+    "steps": [
+      {
+        "step": "planner",
+        "calls": 1,
+        "retries": 0,
+        "cost_usd": "0.00264",
+        "share_percent": "100.0"
+      }
+    ]
+  },
+  "summary": null
+}
+```
+
+`iteration` is the role's proposal attempt; `attempt` is the network attempt within that call; `call_id` identifies each distinct request within the run. JSON repair is marked `retry: true`, even when its network attempt resets to 1. Examiner repairs also advance `iteration`. Each record counts as at most one retry.
+
+Token values come from provider usage. Unreported splits/cache counts are `null`, not invented. When no usable token counts are returned, an offline UTF-8 byte tokenizer supplies a conservative content estimate and sets `estimated: true`; unavailable output on transport failures remains `null`. Real totals are never replaced by estimates. Cached tokens are a subset of input tokens, and reasoning tokens are already included in provider completion totals. No prompt, completion or reasoning text is stored in usage records.
+
+Money in this new event is an exact nonnegative decimal **string** in USD, or `null`. `cost_source` is `provider`, `pricing`, `mock` or `unknown`. Provider `usage.cost` takes precedence; published-rate calculations are visibly labelled estimates. Missing/ambiguous rates yield `null` and a warning. `status` describes HTTP success/error, not parsing or gatekeeper acceptance. The cost is inference cost: Apify rounding, plan-dependent markup and relay hosting are excluded.
+
+A total is `null` if any call's corresponding total is unknown. `known_cost_usd`/`known_tokens` are explicit subtotals, never full totals. Percentages and the most expensive step are unavailable when any step has unknown cost. Averages use saved runs whose LLM work is complete and whose costs are known (including estimates, which remain marked); `average_run_count` states the denominator. Final usage is emitted before `summary`/`awaiting_approval`, or before `run_failed`, because no later approval action invokes an LLM. It is saved to `<DATA_DIR>/runs/<run_id>/usage.json` after every call and at completion. Old `summary.stats` fields and all existing event payloads remain unchanged; `contract_version` stays 1.
+
 ## 11. Pořadí a stavy
 
 ### 11.1 Fáze
