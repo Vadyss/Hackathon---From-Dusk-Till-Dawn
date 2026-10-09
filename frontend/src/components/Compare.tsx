@@ -24,7 +24,7 @@ export function Compare({ runs }: { runs: RunState[] }) {
   const done = runs
     .filter((r) => {
       const st = runStatus(r);
-      return (st === "approved" || st === "rejected") && statsOf(r);
+      return (st === "approved" || st === "rejected" || st === "failed") && statsOf(r);
     })
     .slice(0, 2)
     .reverse(); // older on the left

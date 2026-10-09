@@ -118,3 +118,17 @@ test("failed outcome exposes the protocol reason code and literal backend reason
   assert.ok(!html.includes("<img "));
   assert.equal(render(ReviewCard, { run: value }), "");
 });
+
+test("comparison includes failed completed runs with summaries and skips failures without statistics", () => {
+  const failed = run("run_bcdefghi", { ...stats, cost_usd: 0.0023 });
+  failed.events.push({ type: "run_failed", run_id: failed.run_id, seq: failed.events.length + 1,
+    phase: "done", timestamp: "2026-10-09T10:00:00.000Z", message: "Run failed.",
+    data: { reason_code: "INTERNAL_ERROR", reason: "Failure after summary." } });
+  const withoutSummary = { ...failed, run_id: "run_cdefghij",
+    events: failed.events.filter((event) => event.type !== "summary") };
+  const comparison = render(Compare, { runs: [withoutSummary, failed, run("run_abcdefgh", stats, "approved")] });
+  const costRow = [...comparison.matchAll(/<tr\b[\s\S]*?<\/tr>/g)].map((x) => x[0]).find((x) => x.includes("Cost (USD)"));
+  assert.ok(costRow, "failed run with a summary must qualify as completed comparison data");
+  assert.ok(costRow.indexOf("$0.0123") < costRow.indexOf("$0.0023"));
+  assert.ok(!comparison.includes("Finish two runs"));
+});
