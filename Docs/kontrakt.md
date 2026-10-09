@@ -69,7 +69,7 @@ Frontend v prohlížeči komunikuje přímo s backendem. nginx v Dockeru obsluhu
 - Najednou může být aktivní nejvýš jeden běh. **Aktivní** znamená ve stavu `running` nebo `awaiting_approval`.
 - Přihlašování není. Aplikace běží jen v lokální síti a schválit může kdokoli, kdo stránku otevře. Jde o známé omezení.
 - Historie běhů a událostí je jen v paměti backendu a po restartu backendu zmizí. Registr dovedností zůstává, protože je na disku.
-- Texty určené lidem (`message`, `reason`) jsou česky.
+- Texty generované aplikací pro lidi (`message`, `reason`, `description`, `steps`, `explanation`, `summary.text`, chybové zprávy a detaily porušení) jsou anglicky. Text analytika a surové logy se nepřekládají. Formátování data a čísel v UI používá `en-US`; API zachovává ISO 8601 v UTC.
 
 ---
 
@@ -271,7 +271,7 @@ Cesty v tomto dokumentu jsou cesty skutečného FastAPI backendu bez prefixu `/a
 
 #### `POST /runs/{run_id}/reject`
 
-- Tělo: `{"reason": "Příliš mnoho falešných poplachů."}`; `reason` je povinný, 1 až 500 znaků
+- Tělo: `{"reason": "Too many false positives."}`; `reason` je povinný, 1 až 500 znaků
 - 200: `{"status": "rejected"}`
 - Chyby: 400 `INVALID_REQUEST`, 404 `RUN_NOT_FOUND`, 409 `NOT_AWAITING_APPROVAL`
 
@@ -301,7 +301,7 @@ Cesty v tomto dokumentu jsou cesty skutečného FastAPI backendu bez prefixu `/a
 Všechny chybové odpovědi mají stejný tvar:
 
 ```json
-{ "error": { "code": "RUN_ALREADY_ACTIVE", "message": "Předchozí běh ještě neskončil." } }
+{ "error": { "code": "RUN_ALREADY_ACTIVE", "message": "The previous run is still active." } }
 ```
 
 | HTTP | `code` | Kdy |
@@ -339,7 +339,7 @@ Každá událost, ať přijde přes WebSocket, nebo přes `GET .../events`, má 
 | `seq` | `int` | pořadí v běhu, začíná od 1 a roste bez mezer |
 | `timestamp` | `string` | čas vzniku |
 | `phase` | `string` | `intake` \| `plan` \| `forge` \| `rule` \| `validation` \| `approval` \| `done` |
-| `message` | `string` | krátký český popis pro časovou osu; skládá ho kód backendu, ale může obsahovat názvy od LLM, proto **[nedůvěryhodné]** |
+| `message` | `string` | krátký anglický popis pro časovou osu; skládá ho kód backendu, ale může obsahovat názvy od LLM, proto **[nedůvěryhodné]** |
 | `data` | `object` | obsah podle typu události; u typů bez dat `{}` |
 
 ```json
@@ -349,7 +349,7 @@ Každá událost, ať přijde přes WebSocket, nebo přes `GET .../events`, má 
   "seq": 9,
   "timestamp": "2026-10-04T14:30:12.345Z",
   "phase": "forge",
-  "message": "Dovednost distinct_count_window prošla testy (pokus 2 ze 3).",
+  "message": "Skill distinct_count_window passed tests (attempt 2 of 3).",
   "data": { }
 }
 ```
@@ -571,7 +571,7 @@ Jen po schválení. Jedna událost na každou dovednost ze `new_skills`.
 - `reason`: `string` **[nedůvěryhodné]**
 
 ```json
-{ "reason": "Příliš mnoho falešných poplachů." }
+{ "reason": "Too many false positives." }
 ```
 
 ### 10.8 Události v kterékoli fázi
@@ -614,7 +614,7 @@ Konec běhu.
 - `reason`: `string`, popis od backendu
 
 ```json
-{ "reason_code": "FORGE_FAILED", "reason": "Dovednost distinct_count_window neprošla testy ani ve 3. pokusu." }
+{ "reason_code": "FORGE_FAILED", "reason": "Skill distinct_count_window failed tests after 3 attempts." }
 ```
 
 ---
@@ -707,9 +707,11 @@ Pořadí kroků 1 a 2 je důležité. WebSocket se otevírá první, aby se nezt
 
 - **Časová osa:** všechny události; zobrazuje `timestamp`, `phase` a `message`.
 - **Chat:** `run_started.request` a `summary.text`.
-- **Schválení:** poslední `awaiting_approval` běhu ve stavu `awaiting_approval`. Po kliknutí na „Schválit“ nebo „Zamítnout“ se tlačítka zablokují, dokud nepřijde koncová událost nebo chyba. Při chybě se znovu odblokují a zobrazí se `error.message`.
+- **Schválení:** poslední `awaiting_approval` běhu ve stavu `awaiting_approval`. Po kliknutí na „Approve and install“ nebo „Reject“ se tlačítka zablokují, dokud nepřijde koncová událost nebo chyba. Při chybě se znovu odblokují a zobrazí se `error.message`.
 - **Dovednosti:** výchozí seznam z `GET /skills`. Událost `skill_installed` dovednost přidá, `skill_reused` ji zvýrazní, `skill_candidate_ready` ji může ukázat jako kandidáta.
-- **Srovnání:** `summary.stats` dvou běhů, například posledních dvou dokončených.
+- **Srovnání:** `summary.stats` dvou posledních dokončených běhů: `duration_ms`, `llm_calls`, `tokens_total`, `cost_usd`, `skills_built`, `skills_reused`. Neznámé tokeny a cena (`null`) se zobrazí jako „—“, cena například `$0.0123`.
+- **Schvalovaný předmět:** panel „Approve detection rule“ schvaluje recept. `new_skills` jsou zvlášť vypsané nové nástroje. Při prázdném seznamu se ukáže „No new tools built in this run (reused existing tools)“ a recept lze stále schválit.
+- **Hlas:** přehrávač vzniká pouze na základě `voice_ready`; načítá audio z kanonického endpointu kapitoly 7.
 
 ### 12.6 Odpovědi HTTP
 
@@ -721,7 +723,7 @@ Pořadí kroků 1 a 2 je důležité. WebSocket se otevírá první, aby se nezt
 
 Frontend se připojuje ke skutečnému FastAPI backendu v `backend/orchestrator/main.py`. Návod ke spuštění je v `frontend/README.md`.
 
-Současná implementace `run_pipeline` vytváří pouze událost `run_started`. Plánování, tvorba dovedností, ověření pravidel, shrnutí a hlas zatím nejsou implementované. Běh proto zůstává ve stavu `running` a další požadavek vrátí `RUN_ALREADY_ACTIVE`; pro nový běh je do dokončení pipeline potřeba restartovat backend.
+Současná implementace `run_pipeline` plánuje, znovu používá nebo vytváří dovednosti, kontroluje návrhy vrátným, měří recept na ladicí a nezávislé ověřovací sadě a předkládá jej analytikovi ke schválení. Shrnutí obsahuje skutečné počty volání, tokenů a cenu oznámenou poskytovatelem. Volitelný hlas vyžaduje konfiguraci ElevenLabs; bez ní se `voice_ready` neodesílá. Aktivní běh blokuje další požadavek kódem `RUN_ALREADY_ACTIVE` až do koncové události.
 
 Katalog událostí a následující sekvence popisují cílové chování kontraktu. Připojení ke skutečnému backendu samo o sobě tuto pipeline nedoplňuje.
 
