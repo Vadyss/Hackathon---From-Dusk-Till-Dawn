@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 import { dataOf, formatCost, formatDuration, formatNumber, lastOf, runRequest, runStatus } from "@/lib/derive";
 import type { RunState } from "@/lib/engine";
 import type { RunStats } from "@/lib/types";
@@ -43,10 +44,12 @@ export function Compare({ runs }: { runs: RunState[] }) {
           <tr className="text-left text-xs text-subtle">
             <th className="pb-2 font-normal" />
             <th className="max-w-0 truncate pb-2 text-right font-normal" title={runRequest(a) ?? ""}>
-              Previous
+              <span className="block">Previous</span>
+              <span className="mt-1 block truncate text-xs" title={runRequest(a) ?? ""}>{runRequest(a) ?? a.run_id}</span>
             </th>
             <th className="max-w-0 truncate pb-2 text-right font-normal" title={runRequest(b) ?? ""}>
-              Latest
+              <span className="block">Latest</span>
+              <span className="mt-1 block truncate text-xs" title={runRequest(b) ?? ""}>{runRequest(b) ?? b.run_id}</span>
             </th>
           </tr>
         </thead>
@@ -68,9 +71,6 @@ export function Compare({ runs }: { runs: RunState[] }) {
           })}
         </tbody>
       </table>
-      <p className="mt-3 text-xs leading-relaxed text-subtle">
-        Skills the agent builds once are reused in later runs, so repeat work gets faster and cheaper.
-      </p>
     </div>
   );
 }

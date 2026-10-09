@@ -1,4 +1,6 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 FROM python:3.12-slim
+LABEL org.opencontainers.image.authors="Adam Krúpa, Ondra Csajka"
 
 WORKDIR /app
 ENV PYTHONPATH=/app PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1

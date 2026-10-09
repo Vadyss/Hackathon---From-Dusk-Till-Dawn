@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -6,7 +7,7 @@ import type { RunStatus } from "@/lib/types";
 import { IconCheck, IconCopy } from "./icons";
 
 const STATUS_DOT: Record<RunStatus, string> = {
-  running: "bg-info animate-pulse",
+  running: "bg-info",
   awaiting_approval: "bg-warn",
   approved: "bg-ok",
   rejected: "bg-subtle",
@@ -19,7 +20,7 @@ export function StatusDot({ status }: { status: RunStatus | null }) {
 
 export function StatusPill({ status }: { status: RunStatus | null }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-line px-2 py-0.5 text-xs text-muted">
+    <span className="inline-flex items-center gap-2 text-sm text-muted">
       <StatusDot status={status} />
       {status ? STATUS_LABEL[status] : "Starting"}
     </span>
@@ -29,7 +30,7 @@ export function StatusPill({ status }: { status: RunStatus | null }) {
 export function Tag({ children, mono }: { children: ReactNode; mono?: boolean }) {
   return (
     <span
-      className={`inline-flex items-center rounded-md bg-surface px-1.5 py-0.5 text-[11px] leading-4 text-muted ${
+      className={`inline-flex items-center text-xs leading-5 text-muted ${
         mono ? "font-mono" : ""
       }`}
     >
@@ -78,23 +79,24 @@ export function CodeBlock({ value, label = "json" }: { value: unknown; label?: s
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   return (
-    <div className="code-block overflow-hidden rounded-xl border border-line">
-      <div className="flex items-center justify-between bg-surface px-3 py-1.5 text-xs text-muted">
-        <span className="font-mono">{label}</span>
-        <div className="code-tools"><button type="button" onClick={copy} className="inline-flex items-center gap-1 rounded px-1 hover:text-fg">
+    <details className="code-block overflow-hidden rounded-md border border-line">
+      <summary className="code-summary bg-surface px-3 py-3 text-sm text-muted" aria-label={`View ${label}`}>
+        <span className="font-mono break-all">{label}</span>
+      </summary>
+      <div className="code-tools flex justify-end gap-3 bg-surface px-3 pb-3 text-xs text-muted"><button type="button" onClick={copy} className="inline-flex items-center gap-1 rounded px-1 hover:text-fg">
           {copied ? <IconCheck className="size-3.5" /> : <IconCopy className="size-3.5" />}
           {copied ? "Copied" : "Copy"}
         </button>
-        <button type="button" onClick={download} className="rounded px-1 hover:text-fg">Download JSON</button></div>
+        <button type="button" onClick={download} className="rounded px-1 hover:text-fg">Download JSON</button>
       </div>
       <pre ref={codeRef} tabIndex={0} className="max-h-80 overflow-auto bg-bg p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all">
         {text}
       </pre>
       {error && <p role="status" className="copy-feedback px-3 pb-3">{error}</p>}
-    </div>
+    </details>
   );
 }
 
 export function SectionLabel({ children }: { children: ReactNode }) {
-  return <div className="mb-2 text-xs font-medium text-subtle">{children}</div>;
+  return <div className="mb-2 text-sm font-medium text-muted">{children}</div>;
 }

@@ -1,8 +1,9 @@
+// Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 "use client";
 
 import { useRef, useState } from "react";
 import { audioUrl } from "@/lib/api";
-import { currentPhase, dataOf, formatCost, formatDuration, formatNumber, lastOf, PHASE_LABEL, reusedSkillNames, runCreatedAt, runRequest, runStatus, STATUS_LABEL } from "@/lib/derive";
+import { dataOf, formatCost, formatDuration, formatNumber, lastOf, reusedSkillNames, runCreatedAt, runRequest, runStatus } from "@/lib/derive";
 import type { RunState } from "@/lib/engine";
 import { Activity } from "./Activity";
 import { Outcome, ReviewCard } from "./Approval";
@@ -16,7 +17,6 @@ export function DetectionRun({ run, title, onEdit, busy }: {
 }) {
   const request = runRequest(run);
   const status = runStatus(run);
-  const phase = currentPhase(run);
   const created = runCreatedAt(run);
   const summaryEvent = lastOf(run, "summary");
   const summary = summaryEvent ? dataOf(summaryEvent, "summary") : null;
@@ -45,26 +45,31 @@ export function DetectionRun({ run, title, onEdit, busy }: {
     <section id="run-view" className="run-detail" aria-labelledby="run-title">
       <div className="run-heading">
         <div>
-          <p className="eyebrow">Detection <span className="mono break-all">/ {run.run_id}</span></p>
           <h1 id="run-title">{title}</h1>
           <p id="run-request" className="run-request muted whitespace-pre-wrap">{request ?? "Waiting for the request from the backend."}</p>
         </div>
-        <div className="shrink-0" role="status"><StatusPill status={status} /></div>
+        {status !== "awaiting_approval" && <div className="shrink-0" role="status"><StatusPill status={status} /></div>}
       </div>
       <RunActions key={run.run_id} request={request} busy={busy} onEdit={onEdit} />
       <div className="run-layout">
         <div className="run-main">
           <article className="panel">
             <div className="panel-header">
-              <h2>Agent activity</h2>
-              {phase && <span className="mono">{PHASE_LABEL[phase]}</span>}
+              <h2>Activity</h2>
             </div>
             <div className="activity-list">{run.events.length ? <Activity key={run.run_id} run={run} /> : <p className="muted text-sm">Waiting for the first event.</p>}</div>
           </article>
           {summary && typeof summary.text === "string" && summary.text && (
             <article className="panel">
               <div className="panel-header"><h2>Summary</h2></div>
-              <p className="run-summary review-summary whitespace-pre-wrap" style={{ overflowWrap: "anywhere" }}>{summary.text}</p>
+              {summary.text.length > 400 ? (
+                <details className="run-summary-output">
+                  <summary>Read full summary</summary>
+                  <pre tabIndex={0}>{summary.text}</pre>
+                </details>
+              ) : (
+                <p className="run-summary review-summary whitespace-pre-wrap" style={{ overflowWrap: "anywhere" }}>{summary.text}</p>
+              )}
               {voiceEvent && <RunAudio key={`${run.run_id}-${voiceEvent.seq}`} runId={run.run_id} />}
             </article>
           )}
@@ -77,17 +82,14 @@ export function DetectionRun({ run, title, onEdit, busy }: {
         </div>
         <aside className="run-aside" aria-label="Run details">
           <article className="panel">
-            <div className="panel-header"><h2>Run context</h2></div>
+            <div className="panel-header"><h2>Details</h2></div>
             <dl className="context-list">
-              <div><dt>Status</dt><dd>{status ? STATUS_LABEL[status] : "Waiting for events"}</dd></div>
-              {phase && <div><dt>Phase</dt><dd>{PHASE_LABEL[phase]}</dd></div>}
               <div><dt>Created</dt><dd>{created ? <time dateTime={new Date(created).toISOString()}>{new Date(created).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}</time> : "Not available"}</dd></div>
-              <div><dt>Approval</dt><dd>Human required</dd></div>
+              <div><dt>Run ID</dt><dd className="mono break-all">{run.run_id}</dd></div>
             </dl>
-            <div className="context-note"><p>Approval is required to install the rule and any new skills.</p></div>
           </article>
           <article className="panel" aria-label="Run statistics">
-            <div className="panel-header"><h2>Run statistics</h2></div>
+            <div className="panel-header"><h2>Usage</h2></div>
             <dl className="context-list">
               <div><dt>Duration</dt><dd>{formatDuration(summary?.stats?.duration_ms)}</dd></div>
               <div><dt>LLM calls</dt><dd>{formatNumber(summary?.stats?.llm_calls)}</dd></div>
@@ -100,9 +102,9 @@ export function DetectionRun({ run, title, onEdit, busy }: {
           </article>
           <article className="panel">
             <div className="panel-header"><h2>Skills in this run</h2><span className="nav-count">{reused.length + newSkills.length}</span></div>
-            {reused.map((name) => <div className="context-skill" key={`reused-${name}`}><div className="min-w-0"><strong style={{ overflowWrap: "anywhere" }}>{name}</strong><small>Reused from the registry</small></div><span className="tag">Reused</span></div>)}
-            {newSkills.map((name) => <div className="context-skill" key={`new-${name}`}><div className="min-w-0"><strong style={{ overflowWrap: "anywhere" }}>{name}</strong><small>{installed.has(name) ? "Installed in the registry" : candidateNote}</small></div><span className="tag">{installed.has(name) ? "Installed" : "Candidate"}</span></div>)}
-            {!reused.length && !newSkills.length && <p className="muted text-xs leading-relaxed">No skills reported.</p>}
+            {reused.map((name) => <div className="context-skill" key={`reused-${name}`}><div className="min-w-0"><strong style={{ overflowWrap: "anywhere" }}>{name}</strong><small>Reused</small></div></div>)}
+            {newSkills.map((name) => <div className="context-skill" key={`new-${name}`}><div className="min-w-0"><strong style={{ overflowWrap: "anywhere" }}>{name}</strong><small>{installed.has(name) ? "Installed" : candidateNote}</small></div></div>)}
+            {!reused.length && !newSkills.length && <p className="muted text-xs leading-relaxed">Tools will appear here as the run progresses.</p>}
           </article>
         </aside>
       </div>

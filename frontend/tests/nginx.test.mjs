@@ -1,8 +1,13 @@
+// Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const config = readFileSync(new URL("../nginx.conf", import.meta.url), "utf8");
+test("missing pages use the exported not-found page with the shared footer", () => {
+  assert.match(config, /error_page 404 \/404\.html;/);
+  assert.match(config, /try_files \$uri \$uri\.html \$uri\/ =404;/);
+});
 test("API proxy removes /api prefix and preserves the static frontend", () => {
   assert.match(config, /location \/api\/\s*\{[^}]*proxy_pass http:\/\/backend:8000\/;/);
   assert.match(config, /location \/\s*\{[^}]*try_files/);

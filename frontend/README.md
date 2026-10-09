@@ -1,3 +1,4 @@
+<!-- Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved. -->
 # Frankenstein frontend
 
 The Next.js frontend connects directly from the browser to the FastAPI backend. The default address is `http://127.0.0.1:8000`. HTTP requests use `/health`, `/runs`, and `/skills`; the WebSocket address is `ws://127.0.0.1:8000/ws`.
@@ -51,7 +52,7 @@ For access from another device, also set `BACKEND_BIND_HOST=0.0.0.0`, a publicly
 
 Click the microphone next to the text field and allow microphone access. Voice dictation uses English (`en-US`) only. There is no language selector. Recognized speech is added to the text as you speak.
 
-To finish, click `Stop voice`. Once transcription finishes, you can edit the text and submit it with `Build detection`. Typing manually, selecting a template, or leaving the request editor stops dictation. Sending is disabled while transcription is in progress so the final result is preserved. Voice text shares the combined 2,000-character request limit described below.
+To finish, click `Stop dictation`. Once transcription finishes, you can edit the text and submit it with `Build detection`. Typing manually, selecting a template, or leaving the request editor stops dictation. Sending is disabled while transcription is in progress so the final result is preserved. Voice text shares the combined 2,000-character request limit described below.
 
 This feature requires HTTPS or localhost and a browser that supports [SpeechRecognition](https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognition). If the API is unavailable or the browser denies microphone access, the interface displays a message and text input remains available. Some browsers, such as Chrome, may send audio to their online speech recognition service. Clicking `Build detection` submits the resulting text to the backend as a normal prompt.
 
@@ -94,8 +95,8 @@ The tests use Node's built-in test runner and the existing TypeScript dependency
 
 ## Current backend scope
 
-After creating a run, the backend sends only the `run_started` event. Planning, skill generation, rule evaluation, summaries, and voice summaries are not yet implemented. The run remains active; another request returns `RUN_ALREADY_ACTIVE`. Until the pipeline is complete, restart the backend to start a new run.
+The backend sends events for planning, tool building, rule evaluation, review, and approval. The timeline, results, tools, and comparison read those events and the API; this frontend has no scripted production run data. A second request during an active run returns `RUN_ALREADY_ACTIVE`. Voice summaries are optional.
 
-The backend does not provide a stop or cancel endpoint, so the production frontend does not offer a control that pretends to cancel a running detection. `Stop voice` only stops microphone dictation.
+The backend does not provide a stop or cancel endpoint, so the production frontend does not offer a control that pretends to cancel a running detection. `Stop dictation` only stops microphone dictation.
 
 The [contract](../Docs/kontrakt.md) describes the API format and intended event behavior.
