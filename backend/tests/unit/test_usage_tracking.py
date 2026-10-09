@@ -216,3 +216,11 @@ def test_legacy_sync_call_publishes_usage_even_with_no_running_loop(monkeypatch)
         reset_run_counters(binding)
     assert len(emitted) == 1 and emitted[0]["record"]["step"] == "legacy"
     assert emitted[0]["record"]["cost_usd"] == "0.001"
+
+
+def test_untrusted_money_exponents_cannot_expand_into_unbounded_strings():
+    from orchestrator.usage import money
+    assert money(Decimal("1e-999999999")) is None
+    assert money(Decimal("1e999999999")) is None
+    assert money(Decimal("0e-999999999")) == Decimal(0)
+    assert money(Decimal("0.01234567890123456789")) == Decimal("0.01234567890123456789")

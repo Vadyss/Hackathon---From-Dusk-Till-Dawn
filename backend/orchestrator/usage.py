@@ -20,7 +20,15 @@ def money(value):
         return None
     try:
         number = Decimal(str(value))
-        return number if number.is_finite() and number >= 0 else None
+        if not number.is_finite() or number < 0:
+            return None
+        if number == 0:
+            return Decimal(0)
+        # Bound untrusted exponents before fixed-point serialization can allocate
+        # an enormous string. Normal provider currency precision fits easily.
+        if number.as_tuple().exponent < -100 or number.adjusted() > 308 or len(number.as_tuple().digits) > 100:
+            return None
+        return number
     except InvalidOperation:
         return None
 
