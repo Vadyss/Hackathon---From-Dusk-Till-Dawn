@@ -71,8 +71,8 @@ def create_app(*, settings=None, gatekeeper=None, sandbox=None, roles=None, pipe
                 if close:
                     try:
                         await close()
-                    except Exception:
-                        logging.getLogger(__name__).exception("Nepodařilo se uzavřít zdroj backendu.")
+                    except Exception as exc:
+                        logging.getLogger(__name__).error("Nepodařilo se uzavřít zdroj backendu (%s).", type(exc).__name__)
 
     app = FastAPI(title="Frankenstein", lifespan=lifespan, docs_url=None, redoc_url=None)
     register_handlers(app)

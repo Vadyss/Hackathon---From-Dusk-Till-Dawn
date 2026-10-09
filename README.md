@@ -65,4 +65,4 @@ python -m pip install -r requirements.txt -r requirements-dev.txt -r ../sandbox/
 python -m pytest
 ```
 
-Architektura a stav: [PLAN.md](Docs/backend/PLAN.md), [PROGRESS.md](Docs/backend/PROGRESS.md), [REPORT.md](Docs/backend/REPORT.md). Důkazy živých běhů: [LLM_LIVE_TEST.md](Docs/backend/LLM_LIVE_TEST.md). Nastavení relay: [LLM_RELAY.md](Docs/backend/LLM_RELAY.md).
+Architektura a stav: [ARCHITECTURE.md](Docs/backend/ARCHITECTURE.md), [PROGRESS.md](Docs/backend/PROGRESS.md), [REPORT.md](Docs/backend/REPORT.md). Důkazy živých běhů: [LLM_LIVE_TEST.md](Docs/backend/LLM_LIVE_TEST.md). Nastavení relay: [LLM_RELAY.md](Docs/backend/LLM_RELAY.md).

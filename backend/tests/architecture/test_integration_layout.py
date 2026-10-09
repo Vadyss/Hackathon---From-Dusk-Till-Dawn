@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 import yaml
 
@@ -29,3 +30,9 @@ def test_ci_keeps_all_test_suites_and_never_deletes_deployment_volumes():
     integration = str(workflow["jobs"]["integration"])
     assert "--base http://localhost:13000" in integration
     assert "--idle-before-run 180" in integration
+
+
+def test_readme_local_document_links_exist():
+    for target in re.findall(r"\]\(([^)#]+)(?:#[^)]*)?\)", (ROOT / "README.md").read_text()):
+        if "://" not in target:
+            assert (ROOT / target).exists(), target
