@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 import assert from "node:assert/strict";
 import test from "node:test";
 import React from "react";
@@ -47,6 +48,16 @@ test("nullable precision and recall display an em dash", () => {
   assert.equal(formatRatio(null), "—");
   assert.equal(formatRatio(undefined), "—");
   assert.equal(formatRatio(0.85), "85%");
+});
+
+test("event timestamps are visible without hover and do not animate into view", () => {
+  const html = renderToStaticMarkup(React.createElement(Activity, { run: run("Run started.") }));
+  const time = html.match(/<time\b[^>]*>[\s\S]*?<\/time>/)?.[0];
+  assert.ok(time);
+  assert.ok(time.includes('dateTime="2026-10-09T10:00:00.000Z"'));
+  assert.ok(!time.includes("opacity-0"));
+  assert.ok(!time.includes("group-hover"));
+  assert.ok(!html.includes("animate-in"));
 });
 
 test("each timeline event shows its own phase and unknown phase labels remain plain text", () => {

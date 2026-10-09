@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
@@ -23,7 +24,7 @@ function ContextIcon({ kind }: { kind: "file" | "attach" | "instructions" }) {
     attach: "m21 11-8 8a6 6 0 0 1-8.5-8.5l8-8a4 4 0 0 1 5.7 5.7l-8 8a2 2 0 0 1-2.8-2.8L15 6",
     instructions: "M5 4h14M5 12h14M5 20h14M9 2v4M15 10v4M9 18v4",
   };
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[kind]} /></svg>;
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[kind]} /></svg>;
 }
 
 function fileSize(size: number): string {
@@ -196,12 +197,12 @@ export function RequestComposer({ busy, disabled = false, onCreated, prefill }: 
   return (
     <>
       <form className="composer-card" id="prompt-form" onSubmit={submit} aria-busy={sending}>
-        <div className="composer-top"><label className="section-kicker" htmlFor="prompt-input">Detection request</label><span className="composer-format">Plain language</span></div>
+        <div className="composer-top"><label className="section-kicker" htmlFor="prompt-input">What do you want to detect?</label></div>
         <textarea
           id="prompt-input" ref={textRef} rows={5} value={text} readOnly={sending}
           spellCheck={preferences.spellcheck} onKeyDown={onKeyDown}
           onChange={(event) => { cancelDictation(); dictation.clearError(); setText(event.target.value); setError(null); }}
-          placeholder="Look for a source IP failing to log in to multiple SSH accounts within five minutes. Exclude known monitoring accounts."
+          placeholder="Detect repeated failed SSH logins from one IP across several accounts within five minutes."
           aria-describedby={`composer-note request-count${preferences.showShortcuts ? " prompt-hint" : ""}${tooLong ? " request-limit" : ""}`}
           aria-invalid={tooLong}
         />
@@ -217,7 +218,7 @@ export function RequestComposer({ busy, disabled = false, onCreated, prefill }: 
                 <button type="button" className="context-chip-remove" disabled={sending} onClick={() => setInstructions("")} aria-label="Remove instructions"><IconX /></button>
               </li>}
             </ul>
-            <p className="context-local-note">Instructions and full file contents are included when you send this request. Draft context is kept for this page session only.</p>
+            <p className="context-local-note">Instructions and file text are sent with this request. Unsent context is not saved.</p>
           </>}
           {fileFeedback && <p className={`context-feedback${fileError ? " is-error" : ""}`} role="status">{fileFeedback}</p>}
           {tooLong && <p id="request-limit" className="context-feedback is-error" role="status">Remove {count - MAX_REQUEST_CHARACTERS} characters from the request, instructions, or attached files. The combined limit is 2,000 characters, including context labels.</p>}
@@ -232,19 +233,19 @@ export function RequestComposer({ busy, disabled = false, onCreated, prefill }: 
           </div>
           {preferences.showShortcuts && <span className="input-hint" id="prompt-hint">{preferences.enterBehavior === "send" ? <><kbd>Enter</kbd> send · <kbd>Shift + Enter</kbd> new line</> : <><kbd>Enter</kbd> new line · <kbd>Ctrl / ⌘ + Enter</kbd> send</>}</span>}
           <div className="composer-actions">
-            <button type="button" className="voice-button" disabled={dictation.supported !== true || locked || dictation.stopping} onClick={toggleVoice} aria-pressed={dictating} aria-label={dictating ? "Stop English dictation" : "Start English dictation"} title={dictating ? "Stop dictation" : "Dictate in English"}>{dictating ? <IconStop /> : <IconMic />}<span>{dictating ? "Stop voice" : "Voice"}</span></button>
+            <button type="button" className="voice-button" disabled={dictation.supported !== true || locked || dictation.stopping} onClick={toggleVoice} aria-pressed={dictating} aria-label={dictating ? "Stop English dictation" : "Start English dictation"} title={dictating ? "Stop dictation" : "Dictate in English"}>{dictating ? <IconStop /> : <IconMic />}<span>{dictating ? "Stop dictation" : "Dictate"}</span></button>
             <button className="primary-button" type="submit" disabled={!canSubmit}>{sending ? "Starting…" : "Build detection"}<IconArrowUp /></button>
           </div>
         </div>
       </form>
-      <div className="composer-footnote"><span id="composer-note" role="status">{disabled ? "Connect to the backend to send a request." : busy ? "Another run is in progress. Your draft is kept here." : "Every rule needs your approval."}</span><span id="request-count">{count.toLocaleString("en-US")} / 2,000</span></div>
-      <div className="composer-footnote"><span>Voice: English</span><span role="status">{dictation.starting ? "Starting microphone…" : dictation.stopping ? "Finishing transcription…" : dictation.listening ? "Listening… stop dictation before sending." : dictation.supported === false ? "Dictation is unavailable in this browser." : ""}</span></div>
+      <div className="composer-footnote"><span id="composer-note" role="status">{disabled ? "Connect to the backend to send a request." : busy ? "Another run is in progress. Your draft is kept here." : ""}</span><span id="request-count">{count.toLocaleString("en-US")} / 2,000</span></div>
+      <div className="composer-footnote"><span role="status">{dictation.starting ? "Starting microphone…" : dictation.stopping ? "Finishing transcription…" : dictation.listening ? "Listening… stop dictation before sending." : dictation.supported === false ? "Dictation is unavailable here. Type your request instead." : ""}</span></div>
 
       <dialog ref={instructionsRef} className="context-dialog" id="instructions-dialog" aria-labelledby="instructions-title" aria-describedby="instructions-description">
-        <div className="context-dialog-header"><div><h2 id="instructions-title">Request instructions</h2><p id="instructions-description">Add constraints or conventions to include with this request.</p></div><button type="button" className="icon-button context-dialog-close" onClick={() => instructionsRef.current?.close()} aria-label="Close instructions"><IconX /></button></div>
+        <div className="context-dialog-header"><div><h2 id="instructions-title">Request instructions</h2><p id="instructions-description">Add details to include with this request.</p></div><button type="button" className="icon-button context-dialog-close" onClick={() => instructionsRef.current?.close()} aria-label="Close instructions"><IconX /></button></div>
         <form className="context-instructions-form" onSubmit={(event) => { event.preventDefault(); if (sending) return; setInstructions(instructionDraft.trim()); instructionsRef.current?.close(); }}>
           <label className="field-label" htmlFor="request-instructions">Instructions</label>
-          <textarea id="request-instructions" rows={6} value={instructionDraft} readOnly={sending} spellCheck={preferences.spellcheck} onChange={(event) => setInstructionDraft(event.target.value)} placeholder="Use UTC timestamps. Exclude monitoring accounts. Explain thresholds and list assumptions." aria-describedby="instructions-storage instructions-count" />
+          <textarea id="request-instructions" rows={6} value={instructionDraft} readOnly={sending} spellCheck={preferences.spellcheck} onChange={(event) => setInstructionDraft(event.target.value)} placeholder="Use UTC timestamps and explain the thresholds." aria-describedby="instructions-storage instructions-count" />
           <div className="context-instructions-meta"><span id="instructions-storage">Counts toward the combined 2,000-character request limit.</span><span id="instructions-count">{characterCount(instructionDraft).toLocaleString("en-US")} characters</span></div>
           <div className="context-dialog-actions"><button type="button" className="secondary-button" onClick={() => instructionsRef.current?.close()}>Cancel</button><button className="primary-button" type="submit" disabled={sending}>Apply instructions</button></div>
         </form>

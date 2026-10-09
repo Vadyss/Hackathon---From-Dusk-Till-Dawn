@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 "use client";
 
 import { useState } from "react";
@@ -82,7 +83,7 @@ function Details({ e }: { e: RunEvent }) {
         <p className="text-muted">
           {str(s.description)}{" "}
           <span className="text-subtle">
-            · {str(s.kind)} · v{s.version} · {s.origin === "seed" ? "built-in" : "built by agent"}
+            · {str(s.kind)} · v{s.version} · {s.origin === "seed" ? "built-in" : "built during a run"}
           </span>
         </p>
       );
@@ -100,7 +101,7 @@ function Details({ e }: { e: RunEvent }) {
     case "skill_tests_failed": {
       const ex = str(dataOf(e, "skill_tests_failed").error_excerpt);
       return ex ? (
-        <pre className="rounded-lg bg-surface p-2.5 font-mono text-xs whitespace-pre-wrap break-all text-muted">{ex}</pre>
+        <pre tabIndex={0} className="max-h-64 overflow-auto rounded-md bg-surface p-3 font-mono text-xs whitespace-pre-wrap break-all text-muted">{ex}</pre>
       ) : null;
     }
     case "skill_candidate_ready": {
@@ -184,39 +185,39 @@ function Step({ e }: { e: RunEvent }) {
           <span className="mt-0.5 block text-xs text-muted whitespace-pre-wrap">{e.message}</span>
         )}
       </span>
-      {e.phase && (
-        <span className="shrink-0 text-xs text-subtle" aria-label="Event phase">
-          {Object.hasOwn(PHASE_LABEL, e.phase) ? PHASE_LABEL[e.phase] : e.phase}
-        </span>
-      )}
-      <time className="shrink-0 text-xs text-subtle tabular-nums opacity-0 transition group-hover:opacity-100" dateTime={e.timestamp}>
-        {formatTime(e.timestamp)}
-      </time>
-      {expandable && (
-        <IconChevron className={`mt-0.5 size-3.5 shrink-0 text-subtle transition ${open ? "rotate-90" : ""}`} />
-      )}
+      <span className="activity-meta">
+        {e.phase && (
+          <span className="text-xs text-subtle" aria-label="Event phase">
+            {Object.hasOwn(PHASE_LABEL, e.phase) ? PHASE_LABEL[e.phase] : e.phase}
+          </span>
+        )}
+        <time className="text-xs text-subtle tabular-nums" dateTime={e.timestamp}>
+          {formatTime(e.timestamp)}
+        </time>
+        {expandable && <IconChevron className={`size-3.5 shrink-0 text-subtle ${open ? "rotate-90" : ""}`} />}
+      </span>
     </>
   );
   return (
-    <li className="animate-in">
+    <li>
       {expandable ? (
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
           aria-expanded={open}
-          className="group flex w-full items-start gap-2.5 rounded-lg px-2 py-1.5 text-sm hover:bg-surface"
+          className="activity-step-head flex w-full items-start gap-2 rounded-md px-2 py-2 text-sm hover:bg-surface"
         >
           {title}
         </button>
       ) : (
-        <div className="group flex items-start gap-2.5 px-2 py-1.5 text-sm">{title}</div>
+        <div className="activity-step-head flex items-start gap-2 px-2 py-2 text-sm">{title}</div>
       )}
-      {open && <div className="mt-1 mb-2 ml-8.5 mr-2 text-sm">{<Details e={e} />}</div>}
+      {open && <div className="mt-1 mb-2 ml-8 mr-2 text-sm">{<Details e={e} />}</div>}
     </li>
   );
 }
 
-// Collapsible list of agent steps, similar to the "thinking" view in chat assistants.
+// Collapsible timeline of backend events.
 export function Activity({ run }: { run: RunState }) {
   const status = runStatus(run);
   const working = status === "running";
@@ -226,12 +227,12 @@ export function Activity({ run }: { run: RunState }) {
 
   const summary = lastSummary(run);
   const header = working ? (
-    <span className="shimmer">
+    <span>
       {phase ? `${PHASE_LABEL[phase]}…` : "Working…"}
     </span>
   ) : (
     <span>
-      {summary ? `Worked for ${formatDuration(summary)}` : "Activity"} · {steps.length} steps
+      {summary ? `${formatDuration(summary)} · ` : ""}{steps.length} updates
     </span>
   );
 
@@ -244,7 +245,7 @@ export function Activity({ run }: { run: RunState }) {
         className="flex items-center gap-1.5 text-sm text-muted hover:text-fg"
       >
         {header}
-        <IconChevron className={`size-3.5 transition ${open ? "rotate-90" : ""}`} />
+        <IconChevron className={`size-3.5 ${open ? "rotate-90" : ""}`} />
       </button>
       {open && (
         <ol className="mt-2 border-l border-line pl-2">

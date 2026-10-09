@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 "use client";
 
 import { useEffect, useRef } from "react";
@@ -51,8 +52,8 @@ export function PreferencesDialog({ open, onClose }: { open: boolean; onClose: (
   return (
     <dialog ref={dialogRef} className="preferences-dialog" id="preferences-dialog" aria-labelledby="preferences-title" aria-describedby="preferences-description" onCancel={(event) => { event.preventDefault(); onClose(); }}>
       <div className="preferences-header">
-        <div><h2 id="preferences-title">Preferences</h2><p id="preferences-description">Appearance, layout, and input settings for this browser.</p></div>
-        <button className="icon-button" id="preferences-close" type="button" aria-label="Close preferences" onClick={onClose}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6" /></svg></button>
+        <div><h2 id="preferences-title">Preferences</h2><p id="preferences-description">Appearance and input settings.</p></div>
+        <button className="icon-button" id="preferences-close" type="button" aria-label="Close preferences" onClick={onClose}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6" /></svg></button>
       </div>
       <form className="preferences-form" method="dialog" onSubmit={(event) => { event.preventDefault(); onClose(); }}>
         <div className="preferences-body">
@@ -60,23 +61,23 @@ export function PreferencesDialog({ open, onClose }: { open: boolean; onClose: (
             <legend>Appearance</legend>
             <p className="preferences-description">Choose a theme or follow your device.</p>
             <div className="theme-options">
-              {(["light", "dark", "system"] as const).map((theme) => <label className="theme-option" key={theme}><input type="radio" name="theme" data-preference="theme" value={theme} checked={preferences.theme === theme} onChange={() => updatePreference("theme", theme)} /><span className="theme-choice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{themeIcons[theme]}</svg>{theme[0].toUpperCase() + theme.slice(1)}</span></label>)}
+              {(["light", "dark", "system"] as const).map((theme) => <label className="theme-option" key={theme}><input type="radio" name="theme" data-preference="theme" value={theme} checked={preferences.theme === theme} onChange={() => updatePreference("theme", theme)} /><span className="theme-choice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{themeIcons[theme]}</svg>{theme[0].toUpperCase() + theme.slice(1)}</span></label>)}
             </div>
             <Segments name="readingSize" label="Reading size" description="Larger text in requests, results, and rule code." options={[{ value: "standard", label: "Standard" }, { value: "large", label: "Large" }]} />
-            <Segments name="density" label="Density" description="Adjust the space between workspace items." options={[{ value: "comfortable", label: "Comfortable" }, { value: "compact", label: "Compact" }]} />
+            <Segments name="density" label="Density" description="Adjust the space between items." options={[{ value: "comfortable", label: "Comfortable" }, { value: "compact", label: "Compact" }]} />
             <Segments name="contentWidth" label="Content width" description="Use more horizontal space on larger screens." options={[{ value: "standard", label: "Standard" }, { value: "wide", label: "Wide" }]} />
           </fieldset>
           <fieldset>
-            <legend>Workspace</legend>
+            <legend>Layout</legend>
             <Toggle name="showTemplates" label="Show templates" description="Suggested requests below the prompt editor." />
-            <Toggle name="showRecentWork" label="Show recent work" description="The table on the start page. Search runs remains available." />
-            <Toggle name="showContext" label="Show context panels" description="Session details beside the editor and each run." />
+            <Toggle name="showRecentWork" label="Show recent work" description="Recent runs on the start page. All runs stay available in search." />
+            <Toggle name="showContext" label="Show help and run details" description="Help beside the editor and details beside each run." />
           </fieldset>
           <fieldset>
             <legend>Input</legend>
             <p className="preferences-description">Choose what the Enter key does while writing your prompt.</p>
             <div className="keyboard-options">
-              <label className="keyboard-option"><input type="radio" name="enter-behavior" data-preference="enterBehavior" value="newline" checked={preferences.enterBehavior === "newline"} onChange={() => updatePreference("enterBehavior", "newline")} /><span><strong>New line <small className="preference-recommended">Default</small></strong><small>Enter adds a line. Ctrl / Cmd + Enter sends.</small></span></label>
+              <label className="keyboard-option"><input type="radio" name="enter-behavior" data-preference="enterBehavior" value="newline" checked={preferences.enterBehavior === "newline"} onChange={() => updatePreference("enterBehavior", "newline")} /><span><strong>New line</strong><small>Enter adds a line. Ctrl / Cmd + Enter sends.</small></span></label>
               <label className="keyboard-option"><input type="radio" name="enter-behavior" data-preference="enterBehavior" value="send" checked={preferences.enterBehavior === "send"} onChange={() => updatePreference("enterBehavior", "send")} /><span><strong>Send prompt</strong><small>Enter sends. Shift + Enter adds a line.</small></span></label>
             </div>
             <Toggle name="spellcheck" label="Check spelling" description="Use your browser's spellcheck in the prompt editor." />

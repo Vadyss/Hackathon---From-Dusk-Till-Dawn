@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 import assert from "node:assert/strict";
 import test from "node:test";
 import React from "react";
@@ -7,6 +8,7 @@ import { productionModule } from "./load-production-module.mjs";
 const { Compare } = productionModule("components/Compare.tsx");
 const { ReviewCard, Outcome } = productionModule("components/Approval.tsx");
 const { DetectionRun } = productionModule("components/DetectionRun.tsx");
+const { CodeBlock } = productionModule("components/ui.tsx");
 const { formatCost, formatNumber } = productionModule("lib/derive.ts");
 const metric = { true_positives: 9, false_positives: 0, false_negatives: 0,
   precision: 1, recall: 1, passed: true, thresholds: { min_precision: 0.9, min_recall: 0.8 } };
@@ -82,6 +84,43 @@ test("approval stays available with no new skills and renders the exact reused-t
   assert.ok(!html.includes("disabled="), "an empty new_skills array must not disable approval");
   assert.ok(html.includes("Tuning set"));
   assert.ok(html.includes("Validation set"));
+});
+
+test("the approval action is shown once without duplicate approval badges or context notes", () => {
+  const html = render(DetectionRun, { run: run("run_abcdefgh", stats), title: "API run", busy: true, onEdit() {} });
+  assert.equal((html.match(/Approve detection rule/g) ?? []).length, 1);
+  assert.equal((html.match(/Approve and install/g) ?? []).length, 1);
+  assert.ok(!html.includes("Needs review"));
+  assert.ok(!html.includes("Human required"));
+  assert.ok(!html.includes("Approval is required to install"));
+  assert.ok(html.includes("run_abcdefgh"), "the useful run identifier remains available in Details");
+});
+
+test("rule JSON starts collapsed and retains plain text, copy and download controls", () => {
+  const html = render(CodeBlock, { value: { explanation: text }, label: "api_rule.json" });
+  const details = html.match(/<details\b[^>]*>/)?.[0];
+  assert.ok(details, "a native details disclosure provides keyboard-accessible expansion");
+  assert.ok(!/\bopen(?:=|\s|>)/.test(details), "long JSON output starts collapsed");
+  assert.ok(html.includes("<summary"));
+  assert.ok(html.includes("api_rule.json"));
+  assert.ok(html.includes("Copy</button>"));
+  assert.ok(html.includes("Download JSON</button>"));
+  assert.ok(html.includes("&lt;script&gt;analyst-authored text stays literal&lt;/script&gt;"));
+  assert.ok(!html.includes("<script>"));
+});
+
+test("long summaries start collapsed and keep the full API text escaped in a keyboard-readable block", () => {
+  const value = run("run_abcdefgh", stats);
+  const longText = `${text} ${"Detailed backend result. ".repeat(30)}`;
+  value.events.find((event) => event.type === "summary").data.text = longText;
+  const html = render(DetectionRun, { run: value, title: "API run", busy: true, onEdit() {} });
+  const output = html.match(/<details class="run-summary-output">([\s\S]*?)<\/details>/);
+  assert.ok(output, "a long summary uses a closed native disclosure");
+  assert.ok(output[1].includes("<summary>Read full summary</summary>"));
+  assert.ok(output[1].includes('<pre tabindex="0">'));
+  const escaped = longText.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+  assert.ok(output[1].includes(escaped), "the complete API summary remains available without truncation");
+  assert.ok(!html.includes("<script>"));
 });
 
 test("approval shows new skill descriptions literally and hides after terminal events", () => {

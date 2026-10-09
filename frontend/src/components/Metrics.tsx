@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 import { formatRatio } from "@/lib/derive";
 import type { Metrics } from "@/lib/types";
 
@@ -48,7 +49,7 @@ export function MetricsCard({
   if (!metrics) return null;
   const th = metrics.thresholds;
   return (
-    <div className="rounded-xl border border-line p-3.5">
+    <div className="metrics-card min-w-0">
       <div className="mb-3 flex items-start justify-between gap-2">
         <div>
           <div className="text-sm font-medium">{title}</div>
@@ -61,9 +62,9 @@ export function MetricsCard({
         <Ratio label="Recall" value={metrics.recall} min={th?.min_recall} />
       </div>
       <dl className="mt-3 grid grid-cols-3 border-t border-line pt-2.5 text-xs">
-        <Count label="True pos." value={metrics.true_positives} />
-        <Count label="False pos." value={metrics.false_positives} />
-        <Count label="False neg." value={metrics.false_negatives} />
+        <Count label="True positives" value={metrics.true_positives} />
+        <Count label="False positives" value={metrics.false_positives} />
+        <Count label="False negatives" value={metrics.false_negatives} />
       </dl>
     </div>
   );

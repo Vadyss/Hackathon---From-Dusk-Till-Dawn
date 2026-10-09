@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 "use client";
 
 import { formatRelative, runCreatedAt, runRequest, runStatus } from "@/lib/derive";
@@ -81,7 +82,7 @@ export function Sidebar({
         <span className="inline-flex items-center gap-2">
           <span
             className={`size-1.5 rounded-full ${
-              connection === "open" ? "bg-ok" : connection === "connecting" ? "bg-warn" : "bg-bad animate-pulse"
+              connection === "open" ? "bg-ok" : connection === "connecting" ? "bg-warn" : "bg-bad"
             }`}
           />
           {connection === "open" ? "Connected" : connection === "connecting" ? "Connecting…" : "Reconnecting…"}
