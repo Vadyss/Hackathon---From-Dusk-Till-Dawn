@@ -48,3 +48,19 @@ test("nullable precision and recall display an em dash", () => {
   assert.equal(formatRatio(undefined), "—");
   assert.equal(formatRatio(0.85), "85%");
 });
+
+test("each timeline event shows its own phase and unknown phase labels remain plain text", () => {
+  const value = run("Začátek.");
+  value.events.push(
+    { ...value.events[0], seq: 2, type: "plan_ready", phase: "plan", message: "Plán.", data: {} },
+    { ...value.events[0], seq: 3, type: "future_event", phase: "<future phase>", message: "Budoucí krok." },
+    { ...value.events[0], seq: 4, type: "future_event", phase: "__proto__", message: "Jiný krok." },
+  );
+  const html = renderToStaticMarkup(React.createElement(Activity, { run: value }));
+  const rows = [...html.matchAll(/<li\b[\s\S]*?<\/li>/g)].map((match) => match[0]);
+  assert.equal(rows.length, 4);
+  for (const [index, phase] of ["Intake", "Plan", "&lt;future phase&gt;", "__proto__"].entries()) {
+    assert.ok(rows[index].includes(`aria-label="Event phase">${phase}</span>`));
+  }
+  assert.ok(!html.includes("<future phase>"));
+});

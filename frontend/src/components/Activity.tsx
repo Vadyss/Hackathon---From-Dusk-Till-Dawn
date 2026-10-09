@@ -184,6 +184,11 @@ function Step({ e }: { e: RunEvent }) {
           <span className="mt-0.5 block text-xs text-muted whitespace-pre-wrap">{e.message}</span>
         )}
       </span>
+      {e.phase && (
+        <span className="shrink-0 text-xs text-subtle" aria-label="Event phase">
+          {Object.hasOwn(PHASE_LABEL, e.phase) ? PHASE_LABEL[e.phase] : e.phase}
+        </span>
+      )}
       <time className="shrink-0 text-xs text-subtle tabular-nums opacity-0 transition group-hover:opacity-100" dateTime={e.timestamp}>
         {formatTime(e.timestamp)}
       </time>
