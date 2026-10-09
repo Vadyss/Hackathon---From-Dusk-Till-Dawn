@@ -18,7 +18,7 @@ export interface PreferenceState {
 }
 
 export const defaultPreferences: Readonly<PreferenceState> = Object.freeze({
-  theme: "dark", enterBehavior: "send", readingSize: "standard",
+  theme: "dark", enterBehavior: "newline", readingSize: "standard",
   density: "comfortable", contentWidth: "standard", showTemplates: true,
   showRecentWork: true, showContext: true, spellcheck: true,
   showShortcuts: true, wrapCode: true,
