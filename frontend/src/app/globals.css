@@ -21,6 +21,7 @@
 body, .sidebar { --fg: var(--text); --line: var(--border); --hover: var(--surface-hover); --subtle: var(--muted); --bad: var(--danger); --warn: var(--amber); --info: var(--accent); }
 .empty-state { padding: 28px 18px; color: var(--muted); font-size: 13px; line-height: 1.8; border: 1px dashed var(--border); border-radius: 8px; }
 .empty-state h2 { color: var(--text); font-size: 16px; margin-bottom: 8px; }
+.recent-section .empty-state { padding: 14px 0 4px; border: 0; border-radius: 0; font-size: 14px; }
 .connection-pill.offline .status-dot { background: var(--amber); }
 .state-label.running { color: var(--accent); }
 .state-label.awaiting_approval { color: var(--amber); }

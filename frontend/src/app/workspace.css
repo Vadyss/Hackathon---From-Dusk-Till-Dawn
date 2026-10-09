@@ -5,7 +5,7 @@
   --border: #344050; --border-soft: #29333f; --text: #e4e9ef; --secondary: #b0bdcb; --muted: #92a1b2;
   --accent: #bed0e5; --accent-text: #18283b; --accent-soft: #25364c;
   --ok: #9cbca9; --ok-bg: #20332a; --amber: #e2bb77; --warn-bg: #362e21; --danger: #e5a2a6; --danger-bg: #39272d;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-synthesis: none; font-size: 14px; -webkit-font-smoothing: antialiased;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-synthesis: none; font-size: 16px; -webkit-font-smoothing: antialiased;
 }
 body.light {
   color-scheme: light;
@@ -658,4 +658,190 @@ body[data-density="compact"] .activity-log { margin-top: 18px; padding-top: 15px
   .context-file-preview { margin-inline: 16px; }
   .context-dialog-actions { padding: 16px; }
   .context-instructions-form { padding: 16px 16px 0; }
+}
+
+/* Keep each task in one clear group, with consistent spacing and controls. */
+.main-content { max-width: 1184px; padding: 32px 32px 48px; }
+.topbar { min-height: 64px; padding-inline: 32px; }
+.breadcrumbs { font-size: 13px; }
+.topbar-actions { gap: 12px; }
+.connection-pill { font-size: 12px; }
+.preferences-trigger { min-height: 40px; padding-inline: 12px; border-radius: 8px; font-size: 13px; }
+.sidebar { padding-top: 24px; }
+.brand { margin-bottom: 24px; }
+.brand-caption { font-size: 12px; }
+.sidebar .new-detection { min-height: 44px; margin-bottom: 8px; border-radius: 8px; font-size: 14px; }
+.history-trigger { min-height: 40px; margin-bottom: 24px; border-radius: 8px; font-size: 13px; }
+.nav-item { min-height: 44px; padding: 11px 12px; border-radius: 8px; font-size: 14px; }
+.nav-label { font-size: 12px; }
+.sidebar-divider { margin-block: 24px; }
+.recent-runs { grid-template-columns: minmax(0, 1fr); }
+.run-item { min-width: 0; border-radius: 8px; }
+.history-run-title { font-size: 13px; }
+.history-run-item small, .history-sidebar-empty { font-size: 12px; }
+.workspace-meta { font-size: 12px; }
+.workspace-meta small { font-size: 11px; }
+.workspace-heading { align-items: center; margin-bottom: 24px; }
+.workspace-heading h1, .page-heading h1 { font-size: 30px; font-weight: 650; letter-spacing: -.7px; }
+.eyebrow { margin-bottom: 8px; font-size: 12px; }
+.workspace-heading p.muted, .page-heading > p:last-child { max-width: 65ch; margin-top: 8px; font-size: 14px; line-height: 1.65; }
+.workspace-heading .draft-indicator { align-self: center; margin-top: 0; padding: 6px 10px; border-radius: 6px; font-size: 12px; }
+.workspace-grid { grid-template-columns: minmax(0, 1fr) 260px; gap: 24px; align-items: start; }
+.composer-card { border-radius: 12px; }
+.composer-top { padding: 20px 20px 0; }
+.section-kicker { font-size: 14px; font-weight: 600; }
+.composer-format { font-size: 12px; }
+#prompt-input { min-height: 172px; padding: 16px 20px 20px; font-size: 15px; line-height: 1.7; }
+.composer-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "context actions" "hint hint"; gap: 12px 16px; padding: 16px 20px; }
+.composer-context-tools { grid-area: context; gap: 8px; min-width: 0; }
+.composer-actions { grid-area: actions; gap: 8px; margin-left: 0; }
+.input-hint { grid-area: hint; font-size: 11px; }
+.context-tool-button { min-height: 40px; padding: 8px 10px; border-radius: 7px; font-size: 12px; white-space: nowrap; }
+.primary-button, .secondary-button, .danger-button { min-height: 42px; padding: 9px 14px; border-radius: 8px; font-size: 13px; }
+.voice-button { min-height: 42px; padding: 9px 10px; border-radius: 8px; font-size: 13px; }
+.composer-footnote { gap: 8px 16px; padding-inline: 2px; margin-top: 8px; font-size: 12px; line-height: 1.6; }
+.composer-footnote + .composer-footnote { margin-top: 4px; }
+#request-count { white-space: nowrap; }
+.composer-context-status { padding: 0 20px 16px; }
+.context-local-note, .context-feedback { font-size: 12px; }
+.template-section { margin-top: 28px; }
+.section-heading { align-items: baseline; margin-bottom: 14px; }
+.section-heading h2, .context-section h2, .panel-header h2 { font-size: 15px; font-weight: 600; }
+.section-heading > span { font-size: 12px; }
+.suggestion-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; border: 0; }
+.suggestion-card { grid-template-columns: 20px minmax(0, 1fr) 18px; align-content: start; gap: 12px; padding: 16px; border: 1px solid var(--border-soft); border-radius: 10px; background: var(--surface); }
+.template-copy { grid-column: 1 / -1; grid-row: 2; }
+.suggestion-label { font-size: 14px; line-height: 1.5; font-weight: 550; }
+.suggestion-description { margin-top: 6px; font-size: 12px; line-height: 1.6; }
+.template-use { grid-column: 3; grid-row: 1; justify-content: flex-end; font-size: 0; gap: 0; }
+.template-use svg { width: 16px; height: 16px; }
+.workspace-aside { display: block; padding: 20px; border: 1px solid var(--border-soft); border-radius: 12px; background: var(--surface); }
+.context-section + .context-section { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-soft); }
+.session-facts { gap: 14px; margin-top: 16px; }
+.session-facts dt { margin-bottom: 4px; font-size: 12px; }
+.session-facts dd { font-size: 13px; line-height: 1.6; }
+.next-steps { gap: 16px; margin-top: 16px; }
+.next-step-index { display: grid; place-items: center; flex-shrink: 0; width: 24px; height: 24px; padding: 0; border-radius: 6px; background: var(--surface-raised); font-size: 12px; }
+.next-steps strong { font-size: 13px; font-weight: 550; }
+.next-steps p, .aside-note { font-size: 12px; line-height: 1.6; }
+.recent-section { margin-top: 28px; padding: 20px; border: 1px solid var(--border-soft); border-radius: 12px; background: var(--surface); }
+.text-button { min-height: 32px; font-size: 13px; }
+.recent-table { table-layout: fixed; }
+.recent-table th { font-size: 12px; }
+.recent-table td, .recent-title { font-size: 13px; line-height: 1.6; }
+.recent-table th:first-child { width: 40%; }
+.recent-table th:nth-child(2) { width: 21%; }
+.recent-table th:nth-child(3) { width: 21%; }
+.recent-table th:last-child { width: 18%; }
+.recent-table td.mono { font-size: 11px; overflow-wrap: anywhere; }
+.recent-title { min-height: 36px; }
+.page-heading, .run-heading { margin-bottom: 24px; }
+.run-heading > div:first-child { flex: 1; }
+.run-heading > div[role="status"] { padding-top: 4px; }
+.run-heading .run-request { margin-top: 16px; padding: 14px 16px; border: 1px solid var(--border-soft); border-radius: 8px; background: var(--surface); font-size: 14px; line-height: 1.65; }
+.run-tools { flex-wrap: wrap; gap: 10px; margin-bottom: 24px; }
+.run-tools-note { font-size: 12px; line-height: 1.6; }
+.run-layout { grid-template-columns: minmax(0, 1fr) 260px; gap: 24px; }
+.panel { padding: 20px; border-radius: 12px; }
+.panel-header { margin-bottom: 18px; }
+.panel-header > span { font-size: 12px; }
+.context-list { gap: 14px; }
+.context-list dt { font-size: 12px; }
+.context-list dd { font-size: 13px; line-height: 1.6; }
+.context-note { font-size: 12px; line-height: 1.6; }
+.context-skill strong { font-size: 13px; }
+.context-skill small { font-size: 12px; }
+.comparison-table-wrap > p { padding: 24px; }
+.comparison-table-wrap > div { padding: 20px; }
+.skill-card h2 { font-size: 16px; }
+.skill-card > p { font-size: 14px; line-height: 1.65; }
+.skill-card footer { font-size: 12px; }
+.offline-banner { align-items: center; gap: 14px; margin-bottom: 24px; padding: 16px 18px; border-radius: 10px; }
+.offline-banner svg { flex-shrink: 0; }
+.offline-copy { flex: 1; min-width: 0; }
+.offline-copy strong { font-size: 14px; }
+.offline-copy p { max-width: 75ch; margin-top: 4px; font-size: 13px; line-height: 1.6; }
+.offline-banner .secondary-button { flex-shrink: 0; }
+.preferences-header p, .history-header p, .context-dialog-header p { font-size: 13px; }
+.preferences-form legend { font-size: 15px; }
+.preferences-description, .preference-copy p, .preference-copy small, .keyboard-option small { font-size: 13px; line-height: 1.6; }
+.preference-copy strong, .keyboard-option strong { font-size: 14px; }
+.preference-row, .preference-toggle { min-height: 80px; padding-block: 16px; }
+.preferences-reset-row p, .preferences-footer > span { font-size: 12px; }
+.history-dialog, .context-dialog { border-radius: 12px; }
+.history-result-top strong { font-size: 14px; }
+.history-result-prompt { font-size: 13px; }
+.history-result-meta, .history-result-count, .history-footer { font-size: 12px; }
+.history-action { min-height: 36px; font-size: 12px; }
+.context-instructions-form > textarea { border-radius: 8px; font-size: 14px; }
+.context-instructions-meta { flex-wrap: wrap; font-size: 12px; }
+.workspace-footer { font-size: 12px; }
+
+@media (max-width: 1200px) {
+  .workspace-grid, .run-layout { grid-template-columns: minmax(0, 1fr); }
+  .workspace-aside { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+  .workspace-aside .context-section + .context-section { margin: 0; padding: 0; border: 0; }
+  .workspace-aside .context-section:last-child { grid-column: 1 / -1; padding-top: 16px; border-top: 1px solid var(--border-soft); }
+  .run-aside { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 1100px) {
+  .suggestion-grid { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .suggestion-card { align-items: center; align-content: normal; padding: 14px 16px; }
+  .template-copy { grid-column: 2; grid-row: 1; }
+}
+@media (max-width: 780px) {
+  .topbar { min-height: 64px; padding-inline: 16px; }
+  .main-content { padding: 24px 20px 36px; }
+  .workspace-heading h1, .page-heading h1 { font-size: 28px; }
+  .workspace-grid, .run-layout { gap: 20px; }
+}
+@media (max-width: 600px) {
+  .composer-toolbar { grid-template-areas: "context context" "hint hint" "actions actions"; }
+  .composer-actions { justify-self: end; }
+  .workspace-aside, .run-aside { grid-template-columns: minmax(0, 1fr); }
+  .workspace-aside .context-section + .context-section { padding-top: 20px; border-top: 1px solid var(--border-soft); }
+  .run-tools-note { flex-basis: 100%; margin-left: 0; }
+}
+@media (min-width: 781px) and (max-width: 900px) {
+  .composer-toolbar { grid-template-areas: "context context" "hint actions"; }
+}
+@media (max-width: 520px) {
+  .topbar { gap: 8px; padding: 10px 12px; }
+  .breadcrumbs { min-width: 0; font-size: 12px; }
+  .connection-pill { font-size: 11px; }
+  .preferences-trigger { min-height: 40px; }
+  .preferences-trigger::after { font-size: 12px; }
+  .main-content { padding-inline: 16px; }
+  .workspace-heading { margin-bottom: 20px; }
+  .workspace-heading p.muted { font-size: 14px; }
+  .composer-top { padding: 16px 16px 0; }
+  .composer-format { font-size: 11px; }
+  #prompt-input { padding-inline: 16px; font-size: 16px; }
+  .composer-toolbar { padding: 14px 16px; }
+  .composer-context-status { padding-inline: 16px; }
+  .composer-footnote { font-size: 11px; }
+  .section-heading { flex-wrap: wrap; gap: 4px 12px; }
+  .section-heading > span { font-size: 11px; }
+  .recent-section { padding: 16px; }
+  .recent-table th:first-child { width: 45%; }
+  .recent-table th:nth-child(3) { width: 30%; }
+  .recent-table th:last-child { width: 25%; }
+  .recent-table th, .recent-table td { padding-inline: 8px; }
+  .recent-table td, .recent-title { font-size: 12px; }
+  body.light .recent-table :is(th, td):first-child { padding-left: 8px; }
+  body.light .recent-table :is(th, td):last-child { padding-right: 8px; }
+  .run-heading { flex-direction: column; }
+  .run-heading > div { width: 100%; }
+  .run-heading > div[role="status"] { padding-top: 0; }
+  .panel { padding: 16px; }
+  .offline-banner { display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: start; }
+  .offline-banner .secondary-button { grid-column: 2; justify-self: start; }
+  .offline-copy p { font-size: 12px; }
+  .workspace-footer { font-size: 11px; padding-inline: 16px; }
+}
+body[data-density="compact"] .composer-toolbar { gap: 8px 12px; padding-block: 12px; }
+body[data-density="compact"] .recent-section, body[data-density="compact"] .workspace-aside { padding: 16px; }
+body[data-density="compact"] .suggestion-card { padding-block: 12px; }
+@media (min-width: 1181px) {
+  body[data-content-width="wide"] .main-content { max-width: 1480px; }
 }
