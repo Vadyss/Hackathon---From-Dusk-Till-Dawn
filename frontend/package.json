@@ -2,6 +2,12 @@
   "name": "frontend",
   "version": "0.1.0",
   "private": true,
+  "author": "Adam Krúpa and Ondra Csajka",
+  "contributors": [
+    { "name": "Adam Krúpa" },
+    { "name": "Ondra Csajka" }
+  ],
+  "license": "UNLICENSED",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

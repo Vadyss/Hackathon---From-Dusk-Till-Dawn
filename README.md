@@ -1,6 +1,14 @@
+<!-- Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved. -->
 # Frankenstein
 
 Frontend pro agenta, který připravuje detekční pravidla. Frontend komunikuje se skutečným FastAPI backendem ve složce `backend/orchestrator`.
+
+## Authors
+
+Adam Krúpa and Ondra Csajka. All rights reserved.
+
+This project is proprietary. Use, copying, modification, and distribution require
+written consent from both authors. See [LICENSE](LICENSE).
 
 ## Spuštění v Dockeru
 
