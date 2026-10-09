@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """Conservative AST checks; candidate code is never executed here."""
 from __future__ import annotations
 

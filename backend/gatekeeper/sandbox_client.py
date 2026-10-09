@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """Typed HTTP transport; skill failures are data, transport failures exceptions."""
 from __future__ import annotations
 

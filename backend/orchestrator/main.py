@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """Frontend contract v1 and dependency composition for the backend."""
 from __future__ import annotations
 

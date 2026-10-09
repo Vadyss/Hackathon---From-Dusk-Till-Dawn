@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 from concurrent.futures import ThreadPoolExecutor
 import json
 from pathlib import Path

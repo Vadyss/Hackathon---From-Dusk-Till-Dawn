@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """A failed optional summary never invalidates an already verified rule."""
 from __future__ import annotations
 

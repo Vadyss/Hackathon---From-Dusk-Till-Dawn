@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """Test-only transport adapter: submitted code still runs in a limited child."""
 from __future__ import annotations
 

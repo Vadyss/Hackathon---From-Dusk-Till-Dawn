@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """Optional ElevenLabs speech; failure never changes the detection run."""
 from __future__ import annotations
 

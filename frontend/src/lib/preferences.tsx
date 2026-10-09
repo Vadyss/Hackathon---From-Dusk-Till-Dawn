@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from "react";

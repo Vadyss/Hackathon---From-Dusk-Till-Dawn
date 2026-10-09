@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """Read-only, deeply immutable configuration of deterministic authority."""
 from __future__ import annotations
 

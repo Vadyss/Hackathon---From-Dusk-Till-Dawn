@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 // HTTP client per contract chapter 7. Calls the backend directly from the browser.
 import type { RunEvent, RunInfo, SkillInfo } from "./types";
 

@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """Count events by group in an inclusive sliding time window."""
 from collections import defaultdict
 

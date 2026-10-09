@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """Verify the persisted audit trail without modifying it."""
 from __future__ import annotations
 import argparse

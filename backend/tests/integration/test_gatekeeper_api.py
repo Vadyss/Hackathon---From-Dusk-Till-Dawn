@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """Authority checks through the public facade with the real isolated runner."""
 from __future__ import annotations
 

@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """Recipe execution through the sandbox and independent incident metrics."""
 from __future__ import annotations
 

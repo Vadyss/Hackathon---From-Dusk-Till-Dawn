@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 import pytest
 from gatekeeper.names import valid_name, valid_run_id, valid_field, safe_join
 

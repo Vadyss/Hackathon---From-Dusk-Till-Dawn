@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """Shared JSON contracts and interfaces; safe for the orchestrator to import."""
 from __future__ import annotations
 

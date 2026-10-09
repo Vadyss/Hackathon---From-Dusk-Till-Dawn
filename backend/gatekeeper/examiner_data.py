@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """Verify independent generator proposals without executing them in the backend."""
 from __future__ import annotations
 

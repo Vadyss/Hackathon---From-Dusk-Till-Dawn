@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, extname, resolve } from "node:path";

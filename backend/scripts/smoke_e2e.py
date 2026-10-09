@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """Real HTTP/WebSocket smoke, requiring a clean isolated mock demo registry."""
 from __future__ import annotations
 

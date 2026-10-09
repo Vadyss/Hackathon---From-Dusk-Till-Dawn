@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 from skill import run
 
 PARAMS = {"group_by": "src_ip", "distinct_field": "user", "window_s": 10}

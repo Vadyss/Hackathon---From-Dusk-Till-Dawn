@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """Sandbox internals stay unchanged; only known human diagnostics are localized."""
 from __future__ import annotations
 
