@@ -7,6 +7,7 @@ import argparse
 import asyncio
 import json
 import math
+import re
 import sys
 import time
 from urllib.parse import urlsplit, urlunsplit
@@ -23,6 +24,11 @@ SEQUENCE_B = [
     "run_started", "plan_ready", "skill_reused", "skill_reused", "rule_drafted",
     "rule_evaluated", "validation_done", "summary", "awaiting_approval",
 ]
+
+
+def core_types(events: list[dict]) -> list[str]:
+    """Event types without llm_usage, whose count depends on model calls."""
+    return [event["type"] for event in events if event["type"] != "llm_usage"]
 
 
 async def smoke(base: str, timeout_s: float, idle_s: float = 0) -> None:
@@ -70,20 +76,23 @@ async def smoke(base: str, timeout_s: float, idle_s: float = 0) -> None:
                         if time.monotonic() - started > timeout_s:
                             raise RuntimeError("The run exceeded the smoke test timeout.")
                         await asyncio.sleep(0.1)
-                    assert [event["type"] for event in events] == expected, events
+                    assert core_types(events) == expected, events
                     summary = next(event["data"] for event in events if event["type"] == "summary")
                     assert (summary["stats"]["skills_built"], summary["stats"]["skills_reused"]) == stats
-                    assert summary["stats"]["tokens_total"] is None
+                    tokens = summary["stats"]["tokens_total"]
+                    assert tokens is None or (type(tokens) is int and tokens >= 0), summary["stats"]
+                    cost = summary["stats"]["cost_usd"]
+                    assert cost is None or (isinstance(cost, str) and re.fullmatch(r"\d+(?:\.\d+)?", cost)), summary["stats"]
                     approved = await client.post(f"/api/runs/{run_id}/approve", json={"comment": "Smoke test."})
                     assert approved.status_code == 200 and approved.json() == {"status": "approved"}, approved.text
                     events = (await client.get(f"/api/runs/{run_id}/events")).json()["events"]
-                    assert [event["type"] for event in events] == expected + suffix, events
+                    assert core_types(events) == expected + suffix, events
                     assert [event["seq"] for event in events] == list(range(1, len(events) + 1))
                     async with asyncio.timeout(5):
                         while len([event for event in observed if event["run_id"] == run_id]) < len(events):
                             await asyncio.sleep(0.01)
                     assert [event for event in observed if event["run_id"] == run_id] == events
-                    print(f"{run_id}: " + " → ".join(event["type"] for event in events))
+                    print(f"{run_id}: " + " → ".join(core_types(events)))
                 skills = (await client.get("/api/skills")).json()["skills"]
                 learned = next(skill for skill in skills if skill["name"] == "distinct_count_window")
                 assert learned["origin"] == "agent" and learned["status"] == "installed"

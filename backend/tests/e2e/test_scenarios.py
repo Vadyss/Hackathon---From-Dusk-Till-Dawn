@@ -70,7 +70,7 @@ def test_complete_a_b_c_d_real_authority_and_websocket(client):
         assert_sequence(events, A)
         assert summary_stats(events)["skills_built"] == 1
         assert summary_stats(events)["skills_reused"] == 1
-        assert summary_stats(events)["tokens_total"] is None
+        assert isinstance(summary_stats(events)["tokens_total"], int)
         assert next(e for e in events if e["type"] == "rule_evaluated")["data"]["metrics"]["precision"] is None
         assert all(s["name"] != "distinct_count_window" for s in client.get("/api/skills").json()["skills"])
         assert client.post(f"/api/runs/{run_id}/approve", json={"comment": "Approved."}).json() == {"status": "approved"}

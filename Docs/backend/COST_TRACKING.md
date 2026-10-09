@@ -29,7 +29,7 @@ Prices are decimal strings in `backend/orchestrator/pricing.json`. Update rates,
 | Model | Input | Cached input | Output | Official source | Verification |
 |---|---:|---:|---:|---|---|
 | anthropic/claude-sonnet-5.5 | $2.00 | $0.20 | $10.00 | [Anthropic official pricing](https://www.anthropic.com/claude-sonnet-5-5); [Apify billing rules](https://apify.com/apify/openrouter) | 2026-10-09 |
-| deepseek/deepseek-v4.1-flash | TODO | TODO | TODO | [DeepSeek official pricing](https://api-docs.deepseek.com/quick_start/pricing/); [Apify billing rules](https://apify.com/apify/openrouter) | Checked 2026-10-09; actual routed rates unresolved, `last_verified: null` |
+| deepseek/deepseek-v4.1-flash | provider-reported only | provider-reported only | provider-reported only | [DeepSeek official pricing](https://api-docs.deepseek.com/quick_start/pricing/); [Apify billing rules](https://apify.com/apify/openrouter) | Provider-reported cost only (`usage.cost` from OpenRouter); no fallback rates are calculated |
 
 The configured routing references are retained separately for traceability; prices are sourced from the model providers' official pages, not third-party comparison sites. Claude's documented five-minute cache-write reference rate is also stored ($2.50/M). DeepSeek's direct peak/off-peak rates are not substituted for OpenRouter routing: direct rates and routed endpoint listings differ, and the actual selected endpoint is not fixed in this application. No DeepSeek fallback rate was guessed. Missing/unverified pricing generates an English warning in logs and in the usage panel, including when a valid provider cost is available.
 
@@ -97,7 +97,7 @@ The existing tests asserting exact event sequences were expanded to include usag
 
 Final verification was limited at the user's request to the new cost calculation and aggregation unit tests: **5 passed, 11 deselected**. No further builds, browser checks or development servers were started. The temporary preview was stopped. Broader results recorded above were completed before that request.
 
-- Actual DeepSeek routed rates remain a TODO; reported provider charges are still tracked accurately when present.
+- DeepSeek uses provider-reported cost only (`usage.cost`); with no reported cost the call's cost stays unknown and no rate is guessed.
 - Inference usage does not establish the final Apify invoice, free-plan multiplier or relay hosting cost.
 - Missing provider usage cannot establish exact native tokens or unknown output/billing; estimates and partial totals are explicitly marked.
 - Usage records survive restarts; API run history remains process-local as before. Standalone diagnostics are not persisted API runs.

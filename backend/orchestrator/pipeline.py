@@ -148,6 +148,9 @@ async def run_pipeline(run, gk, roles, emitter, settings, voice=None):
             summary = f"Built {run.stats.skills_built} skills, reused {run.stats.skills_reused}. Rule passed tuning and validation and is awaiting approval."
         await finish_usage()
         stats = run.stats.snapshot()
+        if stats["tokens_total"] is None:
+            # Provider-only counters can be empty (mock, estimates); the ledger knows the full total.
+            stats["tokens_total"] = usage.aggregate()["total_tokens"]
         await emitter.emit(run, "summary", "approval", {"text": summary, "stats": stats})
         if voice and voice.enabled:
             run.voice_task = asyncio.create_task(voice.speak(run, summary))
