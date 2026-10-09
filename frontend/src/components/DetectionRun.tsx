@@ -5,7 +5,7 @@ import { useRef, useState } from "react";
 import { audioUrl } from "@/lib/api";
 import { dataOf, formatCost, formatDuration, formatNumber, lastOf, reusedSkillNames, runCreatedAt, runRequest, runStatus } from "@/lib/derive";
 import type { RunState } from "@/lib/engine";
-import { Usage } from "./Usage";
+import { Usage, usageCost } from "./Usage";
 import { Activity } from "./Activity";
 import { Outcome, ReviewCard } from "./Approval";
 import { CodeBlock, StatusPill } from "./ui";
@@ -21,6 +21,8 @@ export function DetectionRun({ run, title, onEdit, busy }: {
   const created = runCreatedAt(run);
   const summaryEvent = lastOf(run, "summary");
   const summary = summaryEvent ? dataOf(summaryEvent, "summary") : null;
+  const usageEvent = lastOf(run, "llm_usage");
+  const usageTotals = usageEvent ? dataOf(usageEvent, "llm_usage").totals : undefined;
   const voiceEvent = lastOf(run, "voice_ready");
   const reused = [...reusedSkillNames(run)];
   const candidateNames = run.events.filter((event) => event.type === "skill_candidate_ready")
@@ -94,13 +96,13 @@ export function DetectionRun({ run, title, onEdit, busy }: {
             <div className="panel-header"><h2>Run statistics</h2></div>
             <dl className="context-list">
               <div><dt>Duration</dt><dd>{formatDuration(summary?.stats?.duration_ms)}</dd></div>
-              <div><dt>LLM calls</dt><dd>{formatNumber(summary?.stats?.llm_calls)}</dd></div>
-              <div><dt>Tokens</dt><dd>{formatNumber(summary?.stats?.tokens_total)}</dd></div>
-              <div><dt>Cost (USD)</dt><dd>{formatCost(summary?.stats?.cost_usd)}</dd></div>
+              <div><dt>LLM calls</dt><dd>{formatNumber(usageTotals ? usageTotals.calls : summary?.stats?.llm_calls)}</dd></div>
+              <div><dt>Tokens</dt><dd>{formatNumber(usageTotals ? usageTotals.total_tokens : summary?.stats?.tokens_total)}</dd></div>
+              <div><dt>Cost (USD)</dt><dd>{usageTotals ? usageCost(usageTotals.cost_usd) : formatCost(summary?.stats?.cost_usd)}</dd></div>
               <div><dt>Skills built</dt><dd>{formatNumber(summary?.stats?.skills_built)}</dd></div>
               <div><dt>Skills reused</dt><dd>{formatNumber(summary?.stats?.skills_reused)}</dd></div>
             </dl>
-            {!summary && <p className="muted text-xs">Usage will appear in the run summary.</p>}
+            {!summary && <p className="muted text-xs">Duration and skill totals appear in the run summary.</p>}
           </article>
           <article className="panel">
             <div className="panel-header"><h2>Skills in this run</h2><span className="nav-count">{reused.length + newSkills.length}</span></div>

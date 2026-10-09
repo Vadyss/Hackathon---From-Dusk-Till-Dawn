@@ -2,6 +2,7 @@
 import { dataOf, formatCost, formatDuration, formatNumber, lastOf, runRequest, runStatus } from "@/lib/derive";
 import type { RunState } from "@/lib/engine";
 import type { RunStats } from "@/lib/types";
+import { usageCost } from "./Usage";
 
 type Row = { key: keyof RunStats; label: string; fmt: (v: number | null | undefined) => string; lowerIsBetter: boolean };
 
@@ -36,6 +37,10 @@ export function Compare({ runs }: { runs: RunState[] }) {
   const [a, b] = done;
   const sa = statsOf(a)!;
   const sb = statsOf(b)!;
+  const usageA = lastOf(a, "llm_usage");
+  const usageB = lastOf(b, "llm_usage");
+  const costA = usageA ? dataOf(usageA, "llm_usage").totals : undefined;
+  const costB = usageB ? dataOf(usageB, "llm_usage").totals : undefined;
 
   return (
     <div>
@@ -58,14 +63,14 @@ export function Compare({ runs }: { runs: RunState[] }) {
             const va = sa[r.key];
             const vb = sb[r.key];
             let tone = "";
-            if (typeof va === "number" && typeof vb === "number" && va !== vb) {
+            if (!(r.key === "cost_usd" && (costA || costB)) && typeof va === "number" && typeof vb === "number" && va !== vb) {
               tone = (r.lowerIsBetter ? vb < va : vb > va) ? "text-ok" : "text-bad";
             }
             return (
               <tr key={r.key} className="border-t border-line">
                 <td className="py-2 text-muted">{r.label}</td>
-                <td className="py-2 text-right tabular-nums text-muted">{r.fmt(va)}</td>
-                <td className={`py-2 text-right font-medium tabular-nums ${tone}`}>{r.fmt(vb)}</td>
+                <td className="py-2 text-right tabular-nums text-muted">{r.key === "cost_usd" && costA ? usageCost(costA.cost_usd) : r.fmt(va)}</td>
+                <td className={`py-2 text-right font-medium tabular-nums ${tone}`}>{r.key === "cost_usd" && costB ? usageCost(costB.cost_usd) : r.fmt(vb)}</td>
               </tr>
             );
           })}

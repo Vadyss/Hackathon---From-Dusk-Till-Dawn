@@ -71,3 +71,31 @@ test("a completed run without model calls displays exact zero totals", () => {
   assert.ok(html.includes("Total: 0 tokens · $0.0000"));
   assert.ok(html.includes("No model calls were made."));
 });
+
+
+test("run statistics use live usage totals and never label a partial cost as the total", () => {
+  const { DetectionRun } = productionModule("components/DetectionRun.tsx");
+  const view = run([ev({ kind: "call", record, totals: { ...totals, cost_usd: null, unknown_cost_calls: 1 }, summary: null }),
+    { ...ev({}, 3), type: "summary", phase: "approval", data: { text: "Rule ready.", stats: {
+      duration_ms: 1000, llm_calls: 3, tokens_total: 999, cost_usd: 0.4, skills_built: 0, skills_reused: 1 } } }]);
+  const html = renderToStaticMarkup(React.createElement(DetectionRun, { run: view, title: "Run", onEdit() {}, busy: false }));
+  assert.ok(html.includes("<dt>Cost (USD)</dt><dd>—</dd>"));
+  assert.ok(html.includes("<dt>LLM calls</dt><dd>2</dd>"));
+  assert.ok(html.includes("<dt>Tokens</dt><dd>230</dd>"));
+  assert.ok(html.includes("Known subtotal: $0.0123456789"));
+});
+
+
+test("comparison uses full usage costs rather than legacy partial subtotals", () => {
+  const { Compare } = productionModule("components/Compare.tsx");
+  const completed = (id, cost) => ({ ...run([]), run_id: id, events: [initial,
+    { ...ev({}, 2), type: "summary", data: { text: "Done", stats: { duration_ms: 1000, llm_calls: 2,
+      tokens_total: 230, cost_usd: 0.4, skills_built: 0, skills_reused: 1 } } },
+    ev({ kind: "summary", record: null, totals: { ...totals, cost_usd: cost }, summary: null }, 3),
+    { ...ev({}, 4), type: "rule_approved", phase: "done", data: { rule_name: "rule" } }] });
+  const html = renderToStaticMarkup(React.createElement(Compare, { runs: [completed("run_new", null), completed("run_old", "0.0123456789")] }));
+  const costRow = [...html.matchAll(/<tr\b[\s\S]*?<\/tr>/g)].map(value => value[0]).find(value => value.includes("Cost (USD)"));
+  assert.ok(costRow.includes("$0.0123456789"));
+  assert.ok(costRow.includes("—"));
+  assert.ok(!costRow.includes("$0.4000"));
+});
