@@ -12,7 +12,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 
 UPSTREAM_URL = "https://openrouter.apify.actor/api/v1/chat/completions"
-TIMEOUT_S = 120.0
+TIMEOUT_S = 180.0
 HOP_HEADERS = {b"connection", b"keep-alive", b"proxy-authenticate", b"proxy-authorization",
                b"te", b"trailer", b"transfer-encoding", b"upgrade"}
 

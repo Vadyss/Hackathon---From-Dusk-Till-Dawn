@@ -92,7 +92,6 @@ export class Engine {
     this.stopped = false;
     // Contract 12.2: open the WebSocket first, then load history.
     this.connect();
-    void this.resync();
   }
 
   stop() {
@@ -116,14 +115,13 @@ export class Engine {
       return;
     }
     this.ws = ws;
-    const isReconnect = this.attempt > 0;
-
     ws.onopen = () => {
       if (this.ws !== ws) return;
       this.attempt = 0;
       this.set({ connection: "open" });
-      // Contract 12.4: after reconnecting, fetch what was missed.
-      if (isReconnect) void this.resync();
+      // The handshake must finish before the history snapshot is requested.
+      // This also fetches missed events after every reconnect (contract 12.4).
+      void this.resync();
     };
     ws.onmessage = (msg) => {
       if (this.ws !== ws) return;
@@ -285,7 +283,11 @@ export class Engine {
     const updated = this.state.runs[ev.run_id];
     if (updated && updated.events.some((e) => e.seq > updated.last_seq)) {
       void this.fetchMissing(ev.run_id).catch(() => {
-        /* retried on the next sync */
+        // A transient HTTP failure must not leave the timeline incomplete
+        // indefinitely when the WebSocket remains connected.
+        if (this.stopped) return;
+        if (this.retryTimer) clearTimeout(this.retryTimer);
+        this.retryTimer = setTimeout(() => void this.resync(), 3000);
       });
     }
   }

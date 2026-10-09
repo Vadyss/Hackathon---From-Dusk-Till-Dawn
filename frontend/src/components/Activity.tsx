@@ -178,7 +178,17 @@ function Step({ e }: { e: RunEvent }) {
       <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center">
         <StepIcon e={e} />
       </span>
-      <span className="min-w-0 flex-1 text-left">{eventTitle(e)}</span>
+      <span className="min-w-0 flex-1 text-left" style={{ overflowWrap: "anywhere" }}>
+        <span>{eventTitle(e)}</span>
+        {e.message && e.message !== eventTitle(e) && (
+          <span className="mt-0.5 block text-xs text-muted whitespace-pre-wrap">{e.message}</span>
+        )}
+      </span>
+      {e.phase && (
+        <span className="shrink-0 text-xs text-subtle" aria-label="Event phase">
+          {Object.hasOwn(PHASE_LABEL, e.phase) ? PHASE_LABEL[e.phase] : e.phase}
+        </span>
+      )}
       <time className="shrink-0 text-xs text-subtle tabular-nums opacity-0 transition group-hover:opacity-100" dateTime={e.timestamp}>
         {formatTime(e.timestamp)}
       </time>

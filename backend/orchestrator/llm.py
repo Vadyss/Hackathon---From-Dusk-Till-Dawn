@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import time
 from contextvars import ContextVar, Token
 from dataclasses import dataclass
@@ -83,6 +84,14 @@ def count_tokens(tokens: int | None) -> None:
         counters.tokens_total = (counters.tokens_total or 0) + tokens
 
 
+def count_cost(cost: float | None) -> None:
+    counters = LlmBudget.get()
+    if counters is not None and cost is not None:
+        total = (getattr(counters, "cost_usd", None) or 0.0) + cost
+        if math.isfinite(total):
+            counters.cost_usd = total
+
+
 def _strict_json(text: str):
     def reject_constant(value):
         raise ValueError("JSON does not support nonfinite numbers")
@@ -137,6 +146,18 @@ def _usage_tokens(data: Any) -> int | None:
     return tokens if type(tokens) is int and tokens >= 0 else None
 
 
+def _usage_cost(data: Any) -> float | None:
+    usage = data.get("usage") if isinstance(data, dict) else None
+    cost = usage.get("cost") if isinstance(usage, dict) else None
+    if type(cost) not in (int, float):
+        return None
+    try:
+        cost = float(cost)
+    except OverflowError:
+        return None
+    return cost if math.isfinite(cost) and cost >= 0 else None
+
+
 def _result(data: dict, model: str) -> LlmResult | ParseFailure:
     try:
         content = data["choices"][0]["message"]["content"]
@@ -178,6 +199,7 @@ def _response_data(response, settings, state: ProviderState, model: str) -> tupl
     except ValueError:
         raise LlmError("Poskytovatel vrátil neplatnou odpověď.") from None
     count_tokens(_usage_tokens(data))
+    count_cost(_usage_cost(data))
     result = _result(data, model)
     _provider_succeeded(settings, state, model)
     return data, result
