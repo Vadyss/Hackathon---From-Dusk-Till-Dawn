@@ -46,7 +46,7 @@ test("unknown cost stays unknown and estimates are visible", () => {
     totals: { ...totals, cost_usd: null, unknown_cost_calls: 1, estimated_calls: 1 }, summary: null })]));
   assert.ok(html.includes("Estimated tokens"));
   assert.ok(html.includes("Known subtotal"));
-  assert.ok(html.includes("Cost is unknown for 1 calls."));
+  assert.ok(html.includes("Cost is unknown for 1 call."));
   assert.ok(html.includes("Pricing is unavailable."));
   assert.equal(usageCost(null), "—");
   assert.equal(usageCost("NaN"), "—");
@@ -60,4 +60,14 @@ test("usage does not alter run status or duplicate the activity timeline", () =>
   const html = renderToStaticMarkup(React.createElement(Activity, { run: view }));
   assert.ok(!html.includes("Usage recorded."));
   assert.ok(render(run([])).includes("Older runs may not include it."));
+});
+
+
+test("a completed run without model calls displays exact zero totals", () => {
+  const empty = { ...totals, calls: 0, total_tokens: 0, cost_usd: "0", steps: [], retries: 0 };
+  const html = render(run([ev({ kind: "summary", record: null, totals: empty,
+    summary: { totals: empty, most_expensive_step: null, average_cost_usd: "0", average_run_count: 1,
+      observations: ["No model calls were made."] } })]));
+  assert.ok(html.includes("Total: 0 tokens · $0.0000"));
+  assert.ok(html.includes("No model calls were made."));
 });

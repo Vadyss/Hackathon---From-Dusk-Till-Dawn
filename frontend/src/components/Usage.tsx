@@ -22,8 +22,9 @@ export function Usage({ run }: { run: RunState }) {
   return (
     <article className="panel usage-panel" aria-label="Model usage">
       <div className="panel-header"><h2>Model usage</h2></div>
-      {!records.length ? <p className="muted text-sm">Usage appears after each model call. Older runs may not include it.</p> : <>
-        <div className="usage-table-wrap" tabIndex={0} role="region" aria-label="Usage by model call">
+      {!records.length && !totals ? <p className="muted text-sm">Usage appears after each model call. Older runs may not include it.</p> : <>
+        {!records.length && <p className="muted text-sm">No model calls were made.</p>}
+        {records.length > 0 && <div className="usage-table-wrap" tabIndex={0} role="region" aria-label="Usage by model call">
           <table className="usage-table">
             <thead><tr><th scope="col">Step</th><th scope="col">Model</th><th scope="col">Tokens in / out</th><th scope="col">Cost (USD)</th></tr></thead>
             <tbody>{records.map((record) => <tr key={record.call_id}>
@@ -39,9 +40,9 @@ export function Usage({ run }: { run: RunState }) {
               <td className="tabular-nums">{usageCost(record.cost_usd)}{record.cost_source === "pricing" && <small>Calculated estimate</small>}{record.cost_source === "mock" && <small>Mock · no charge</small>}</td>
             </tr>)}</tbody>
           </table>
-        </div>
-        <p className="usage-total" role="status">{summary ? "Total" : "Running total"}: {formatNumber(totals?.total_tokens)} tokens · {usageCost(totals?.cost_usd)}{Boolean(totals?.estimated_calls) && " (includes estimated tokens)"}</p>
-        {Boolean(totals?.unknown_cost_calls) && <p className="muted text-sm">Known subtotal: {usageCost(totals?.known_cost_usd)}. Cost is unknown for {totals?.unknown_cost_calls} calls.</p>}
+        </div>}
+        <p className="usage-total" role="status">{summary ? "Total" : "Running total"}: {formatNumber(totals?.total_tokens)} tokens · {usageCost(totals?.cost_usd)}{Boolean(totals?.estimated_calls) && " (includes estimated tokens)"}{Boolean(totals?.calculated_cost_calls) && " (includes calculated cost)"}</p>
+        {Boolean(totals?.unknown_cost_calls) && <p className="muted text-sm">Known subtotal: {usageCost(totals?.known_cost_usd)}. Cost is unknown for {totals?.unknown_cost_calls} {totals?.unknown_cost_calls === 1 ? "call" : "calls"}.</p>}
         {warnings.map((warning) => <p key={warning} className="text-warn text-xs">{warning}</p>)}
         <p className="muted text-xs">Inference cost excludes Apify rounding, plan markup and relay hosting.</p>
       </>}
@@ -51,7 +52,7 @@ export function Usage({ run }: { run: RunState }) {
           <tbody>{summary.totals.steps.map((step) => <tr key={step.step}><th scope="row">{step.step.replaceAll("_", " ")}</th><td>{usageCost(step.cost_usd)}</td><td>{step.share_percent === null ? "—" : `${step.share_percent}%`}</td><td>{step.retries}</td></tr>)}</tbody>
         </table>
         <p className="muted text-sm">Most expensive step: {summary.most_expensive_step?.replaceAll("_", " ") ?? "—"}. Retries: {summary.totals.retries}.</p>
-        <p className="muted text-sm">Average across {summary.average_run_count} runs with known cost: {usageCost(summary.average_cost_usd)}.</p>
+        <p className="muted text-sm">Average across {summary.average_run_count} runs with available costs (including estimates): {usageCost(summary.average_cost_usd)}.</p>
         <ul className="usage-observations">{summary.observations.map((text, index) => <li key={index}>{text}</li>)}</ul>
       </div>}
     </article>
