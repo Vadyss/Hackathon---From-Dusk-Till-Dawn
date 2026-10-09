@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 import pytest
 from gatekeeper.static_analysis import analyze_code
 

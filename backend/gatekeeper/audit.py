@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """Append-only audit trail whose canonical records form a SHA-256 chain."""
 from __future__ import annotations
 

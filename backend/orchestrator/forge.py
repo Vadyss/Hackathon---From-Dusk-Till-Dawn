@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """The forge proposes source text. Only gatekeeper can execute or store it."""
 from __future__ import annotations
 

@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { chromium } from 'playwright';

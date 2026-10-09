@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """Deterministic plan validation and normalization."""
 from __future__ import annotations
 

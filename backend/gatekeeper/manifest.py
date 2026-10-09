@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """Skill manifests and reusable parameter contracts."""
 from __future__ import annotations
 

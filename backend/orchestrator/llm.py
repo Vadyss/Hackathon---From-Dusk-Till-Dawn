@@ -7,15 +7,14 @@ import json
 import logging
 import time
 from datetime import datetime, timezone
-from functools import wraps
 from contextvars import ContextVar, Token
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import lru_cache, wraps
 from html import escape
 from pathlib import Path
 from typing import Any, Protocol
 
-from .usage import UsageLedger, calculate_cost, decimal_text, money, prices, response_usage
+from .usage import UsageLedger, calculate_cost, decimal_text, money, response_usage
 
 import httpx
 import requests
@@ -95,7 +94,11 @@ def count_tokens(tokens: int | None) -> None:
 
 def count_cost(cost) -> None:
     counters = LlmBudget.get()
-    if counters is not None and cost is not None:
+    if counters is None:
+        return
+    if cost is None:
+        counters.cost_unknown = True
+    else:
         counters.cost_usd = (money(getattr(counters, "cost_usd", None)) or money(0)) + cost
 
 
@@ -135,8 +138,6 @@ def _capture_usage(ledger, role, model, system, user, response, started, attempt
         warning = "Cost is unknown: provider cost or verified pricing is unavailable."
     elif source == "pricing":
         warning = "Cost is calculated from published rates, not a provider charge."
-    elif source == "provider" and (not prices().get(model) or prices()[model].get("todo")):
-        warning = "Fallback pricing is unverified; this cost was reported by the provider."
     record = dict(step=role, iteration=iteration, attempt=attempt, model=model,
                   **usage, cost_usd=decimal_text(cost), cost_source=source, currency="USD",
                   duration_ms=max(0, int((time.monotonic() - started) * 1000)),
@@ -152,6 +153,15 @@ def _priced_access(settings):
     return settings.llm_provider == "apify" and settings.llm_base_url.rstrip("/") == BASE_URL
 
 
+async def _safe_publish(ledger, event):
+    try:
+        await ledger.publish(event)
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        logger.warning("LLM usage event could not be published (%s).", type(exc).__name__)
+
+
 async def _tracked_post(http, url, *, ledger, role, model, system, user, attempt, context, pricing_allowed, **kwargs):
     response = None
     started = time.monotonic()
@@ -161,7 +171,7 @@ async def _tracked_post(http, url, *, ledger, role, model, system, user, attempt
     finally:
         event = _capture_usage(ledger, role, model, system, user, response, started, attempt, context, pricing_allowed=pricing_allowed)
         if ledger.publish:
-            await ledger.publish(event)
+            await _safe_publish(ledger, event)
 
 
 def _tracked_sync_post(url, *, ledger, model, system, user, attempt, pricing_allowed, **kwargs):
@@ -174,16 +184,19 @@ def _tracked_sync_post(url, *, ledger, model, system, user, attempt, pricing_all
         event = _capture_usage(ledger, "legacy", model, system, user, response, started, attempt, pricing_allowed=pricing_allowed)
         if ledger.publish:
             try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                loop = None
-            if loop is not None and (ledger.loop is None or loop is ledger.loop):
-                ledger.loop = loop
-                ledger.pending.append(loop.create_task(ledger.publish(event)))
-            elif ledger.loop is not None:
-                asyncio.run_coroutine_threadsafe(ledger.publish(event), ledger.loop).result()
-            else:
-                asyncio.run(ledger.publish(event))
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    loop = None
+                if loop is not None and (ledger.loop is None or loop is ledger.loop):
+                    ledger.loop = loop
+                    ledger.pending.append(loop.create_task(_safe_publish(ledger, event)))
+                elif ledger.loop is not None:
+                    asyncio.run_coroutine_threadsafe(_safe_publish(ledger, event), ledger.loop).result()
+                else:
+                    asyncio.run(_safe_publish(ledger, event))
+            except Exception as exc:
+                logger.warning("LLM usage event could not be published (%s).", type(exc).__name__)
 
 
 def track_mock_call(method):
@@ -203,7 +216,7 @@ def track_mock_call(method):
                 event = _capture_usage(ledger, role, "mock", system, user, None, started, 1,
                                        kwargs.get("context"), mock_text=result.text if isinstance(result, LlmResult) else None)
                 if ledger.publish:
-                    await ledger.publish(event)
+                    await _safe_publish(ledger, event)
     return tracked
 
 

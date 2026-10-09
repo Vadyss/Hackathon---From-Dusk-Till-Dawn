@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 // Small stroke icons (24px grid, Lucide-style geometry).
 import type { SVGProps } from "react";
 

@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """Persistent bounded lessons with an identity-free recipe shape."""
 from __future__ import annotations
 

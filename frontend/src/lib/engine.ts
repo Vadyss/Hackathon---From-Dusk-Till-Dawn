@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 // Single state store per contract chapter 12. Every panel reads from here.
 // Run status is derived from events only (see derive.ts), never from HTTP responses.
 import { api, ApiError, wsUrl } from "./api";

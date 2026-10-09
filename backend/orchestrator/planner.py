@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """Planning role and composition of the four bounded proposal roles."""
 from __future__ import annotations
 

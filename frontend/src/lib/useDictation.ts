@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";

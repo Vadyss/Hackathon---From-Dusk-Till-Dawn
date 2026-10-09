@@ -1,37 +1,82 @@
 <!-- Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved. -->
 # Frankenstein
 
-Frontend pro agenta, který připravuje detekční pravidla. Frontend komunikuje se skutečným FastAPI backendem ve složce `backend/orchestrator`.
+Frankenstein is an agent that helps a security analyst write detection rules. The analyst describes an attack in plain language (for example, "detect SSH brute force"). The agent plans the work and checks which skills it already has. If a skill is missing, such as a log parser or a sliding-window aggregation, the agent writes it, tests it in an isolated sandbox, and adds it to a growing skill library. It then drafts a rule, tunes it on one dataset, validates it on a second, independent dataset, and asks the analyst to approve or reject it. Nothing is installed until a human approves.
 
 ## Authors
 
 Adam Krúpa and Ondra Csajka. All rights reserved.
 
-This project is proprietary. Use, copying, modification, and distribution require
-written consent from both authors. See [LICENSE](LICENSE).
+This project is proprietary. Use, copying, modification, and distribution require written consent from both authors. See [LICENSE](LICENSE).
 
-## Spuštění v Dockeru
+## Architecture
 
-Z kořene projektu spusť:
-
-```bash
-docker compose up --build
+```
+Browser (Next.js, static export served by nginx)
+   │  HTTP + WebSocket
+   ▼
+Orchestrator (FastAPI, backend/orchestrator)  ──►  LLM (Apify relay → OpenRouter)
+   │  proposals only
+   ▼
+Gatekeeper (backend/gatekeeper)  ──►  Sandbox (separate container, no network)
 ```
 
-Aplikace je na `http://localhost:3000`. nginx obsluhuje statický frontend; prohlížeč se přímo připojuje k backendu na `http://127.0.0.1:8000` a WebSocketu `ws://127.0.0.1:8000/ws`. Compose publikuje backend jako `127.0.0.1:8000:8000`. Stav backendu ověříš na `http://127.0.0.1:8000/health` nebo přes kompatibilní cestu nginx `http://localhost:3000/api/health`.
+Each LLM-backed role only proposes. The gatekeeper decides and is the only component that writes skills, rules, and audit records.
 
-Compose předává při buildu frontendu argument `NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE:-http://127.0.0.1:8000}`. Pro jiný backend nastav `NEXT_PUBLIC_API_BASE` v prostředí příkazu Compose nebo v kořenovém `.env` a znovu spusť `docker compose up --build`. Adresa se při `next build` zapíše do JavaScriptu pro prohlížeč; změna vyžaduje nový build frontendu.
+| Component | Where | Job |
+|---|---|---|
+| Planner | `backend/orchestrator/planner.py` | Breaks the request into steps and decides which skills are needed. |
+| Forge | `backend/orchestrator/forge.py` | Writes missing skills (manifest, code, tests), with up to 3 attempts per skill. |
+| Rule author | `backend/orchestrator/rule_author.py` | Drafts the detection rule (a recipe) from the available skills. |
+| Summarizer | `backend/orchestrator/summarizer.py` | Writes the short run summary. Falls back to a template if the model fails. |
+| Gatekeeper | `backend/gatekeeper/` | Deterministic checks: policy, static code analysis, plan and recipe validation, metrics, skill registry, audit log. |
+| Examiner (optional) | `backend/examiner/` | Generates independent test data for custom attack types. Off by default (`EXAMINER_ENABLED=false`). |
+| Sandbox | `sandbox/` | Runs untrusted skill code in a restricted subprocess inside a container with no internet access. |
+| Policy | `backend/policy/policy.yaml` | Immutable rules: allowed imports, forbidden calls, size and time limits, precision and recall thresholds. |
 
-## Lokální vývoj
+Untrusted text (logs, requests, test output) is wrapped as data before it reaches a model, and every proposal goes through the gatekeeper before anything runs.
 
-Backend používá Python (Docker image má verzi 3.12) a závislosti z `backend/requirements.txt`. Z kořene projektu:
+## Setup
+
+Requirements: Docker with Compose. For local development without Docker you also need Python 3.12 and Node.js 22.
+
+1. Create your local configuration:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+   Fill in `APIFY_TOKEN` (or `LLM_API_KEY`). `.env` is git-ignored. `.env.example` only lists variable names, so never commit real values.
+
+2. Start the stack from the project root:
+
+   ```bash
+   docker compose up --build
+   ```
+
+3. Open `http://localhost:3000`. Check the backend at `http://127.0.0.1:8000/health`.
+
+**Demo without any LLM calls** (mock model):
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.demo.yml up --build
+```
+
+### Useful settings
+
+- `NEXT_PUBLIC_API_BASE`: backend address used by the browser (default `http://127.0.0.1:8000`). It is baked in at build time, so rebuild the frontend after changing it.
+- `CORS_ORIGINS`: allowed frontend origins (default `http://localhost:3000,http://127.0.0.1:3000`). The WebSocket checks the `Origin` header against the same list.
+- `BACKEND_BIND_HOST`: interface the backend port is published on (default `127.0.0.1`).
+- `LLM_MODEL*`, `LLM_MAX_CALLS_PER_RUN`, `RUN_TIMEOUT_S`: model choice and per-run limits. See `.env.example` for the full list.
+
+### Local development
 
 ```bash
 python -m pip install -r backend/requirements.txt
 python -m uvicorn orchestrator.main:app --app-dir backend --host 127.0.0.1 --port 8000
 ```
 
-V druhém terminálu spusť frontend:
+A full run needs the sandbox, so use the Docker stack, or point `SANDBOX_URL` at a running sandbox and set a writable `DATA_DIR`. Then, in a second terminal:
 
 ```bash
 cd frontend
@@ -39,33 +84,9 @@ npm ci
 npm run dev
 ```
 
-Otevři `http://localhost:3000`. Prohlížeč používá přímo backendové cesty `/health`, `/runs`, `/skills` a WebSocket `/ws`. Jinou adresu backendu lze nastavit v `frontend/.env.development.local`:
+More frontend details are in [frontend/README.md](frontend/README.md).
 
-```dotenv
-NEXT_PUBLIC_API_BASE=http://127.0.0.1:8000
-```
-
-Nastav origin backendu bez prefixu `/api` a bez lomítka na konci, potom restartuj `npm run dev`. Soubor `.env.development.local` platí pouze pro lokální vývoj.
-
-Backend i Compose používají proměnnou `CORS_ORIGINS`, výchozí hodnota je `http://localhost:3000,http://127.0.0.1:3000`. Pro jiný origin frontendu ji nastav v prostředí backendu (v Dockeru přes prostředí Compose nebo kořenový `.env`) a backend restartuj. HTTP CORS povoluje `GET`, `POST` a `Content-Type`; WebSocket ověřuje `Origin` proti stejnému seznamu.
-
-Adresa backendu musí být dostupná z prohlížeče uživatele. `localhost` a `127.0.0.1` jsou pro lokální použití; jméno Docker služby `backend` prohlížeč nezná. Pro frontend na HTTPS musí backend používat HTTPS a WebSocket WSS. Podrobný návod je v [frontend/README.md](frontend/README.md).
-
-Pro přístup z jiného zařízení nastav veřejnou `NEXT_PUBLIC_API_BASE`, odpovídající origin frontendu v `CORS_ORIGINS` a `BACKEND_BIND_HOST=0.0.0.0` pro publikování portu backendu i mimo lokální počítač. CI načítá tyto tři hodnoty z GitHub repository variables stejného jména. Výchozí nastavení je určené pro lokální použití.
-
-## Aktuální stav backendu
-
-Backend obsahuje úplný omezený běh plánování, znovupoužití dovedností, tvorby pravidel, ladění a validace přes izolovaný sandbox. Schválení instaluje dovednost do datového svazku; stav běhů a jejich události jsou v paměti. Vrátný kontroluje politiku i formát před spuštěním kódu.
-
-Výchozí Docker konfigurace používá živé LLM přes Apify relay. Tajemství nastav pouze lokálně v ignorovaném `.env` nebo v prostředí; `.env.example` obsahuje jen názvy proměnných. Plný běh potřebuje sandbox, proto používej Docker stack; samostatný Python potřebuje odpovídající `SANDBOX_URL` a zapisovatelný `DATA_DIR`.
-
-Záložní demo bez volání LLM:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.demo.yml up --build
-```
-
-Offline testy backendu a sandboxu (Python 3.12):
+### Tests
 
 ```bash
 cd backend
@@ -73,4 +94,29 @@ python -m pip install -r requirements.txt -r requirements-dev.txt -r ../sandbox/
 python -m pytest
 ```
 
-Architektura a stav: [ARCHITECTURE.md](Docs/backend/ARCHITECTURE.md), [PROGRESS.md](Docs/backend/PROGRESS.md), [REPORT.md](Docs/backend/REPORT.md). Důkazy živých běhů: [LLM_LIVE_TEST.md](Docs/backend/LLM_LIVE_TEST.md). Nastavení relay: [LLM_RELAY.md](Docs/backend/LLM_RELAY.md).
+Frontend tests: `cd frontend && npm test`. CI (GitHub Actions) runs the backend, frontend, and an isolated Docker integration job, and deploys from `main` only.
+
+## Cost tracking
+
+Every LLM call goes through the client in `backend/orchestrator/llm.py` and is recorded in a per-run ledger.
+
+- The cost reported by the provider (`usage.cost` from OpenRouter) is always used when present.
+- `backend/orchestrator/pricing.json` holds published per-million-token rates and is only a fallback when the provider does not report a cost. Models marked `provider_reported_only` have no fallback rates. Update the file by hand and restart the backend.
+- If any call's cost is unknown, the run total is shown as unknown (with a known subtotal), never as a partial sum.
+- All money is handled as `Decimal` and sent to the UI as exact decimal strings.
+- Each run writes `<DATA_DIR>/runs/<run_id>/usage.json` with per-call records and a final summary: cost by step, retries, and an average over recent real runs (mock runs are excluded).
+- The UI shows live usage in the "Model usage" panel of each run.
+
+Costs cover model inference only. They exclude Apify plan markup and relay hosting. Details: [COST_TRACKING.md](Docs/backend/COST_TRACKING.md).
+
+## Known limitations
+
+- **No authentication.** Anyone who can reach the backend can start runs, approve or reject rules, and read events over HTTP and WebSocket. CORS is not access control.
+- **The backend binds to 127.0.0.1 by default.** Only change `BACKEND_BIND_HOST` on a trusted network, or put an authenticating reverse proxy in front.
+- Run history and events are kept in memory and are lost on restart. Approved skills, rules, the audit log, and usage files are stored on the `/data` volume.
+- Only one run can be active at a time. A run waiting for approval blocks new runs until it is approved or rejected.
+- The sandbox's Python-level guards are defense in depth. The container boundary is what actually isolates untrusted code.
+
+## More documentation
+
+[ARCHITECTURE.md](Docs/backend/ARCHITECTURE.md), [PROGRESS.md](Docs/backend/PROGRESS.md), [REPORT.md](Docs/backend/REPORT.md), [SECURITY_REVIEW.md](Docs/backend/SECURITY_REVIEW.md), [LLM_RELAY.md](Docs/backend/LLM_RELAY.md), [LLM_LIVE_TEST.md](Docs/backend/LLM_LIVE_TEST.md).

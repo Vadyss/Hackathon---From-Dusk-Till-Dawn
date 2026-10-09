@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 // Values derived from events (contract chapters 11 and 12.5).
 import type { RunState } from "./engine";
 import {
@@ -143,7 +144,12 @@ export function formatNumber(value: number | null | undefined): string {
   return typeof value === "number" && Number.isFinite(value) ? value.toLocaleString(LOCALE) : "—";
 }
 
-export function formatCost(value: number | null | undefined): string {
+export function formatCost(value: number | string | null | undefined): string {
+  if (typeof value === "string") {
+    if (!/^\d+(?:\.\d+)?$/.test(value)) return "—";
+    const [whole, decimals = ""] = value.split(".");
+    return `$${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.${decimals.padEnd(4, "0")}`;
+  }
   return typeof value === "number" && Number.isFinite(value) && value >= 0
     ? value.toLocaleString(LOCALE, {
       style: "currency", currency: "USD", minimumFractionDigits: 4, maximumFractionDigits: 6,

@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """Offline relay tests: HTTP bodies stay opaque and secrets stay server-side."""
 from __future__ import annotations
 

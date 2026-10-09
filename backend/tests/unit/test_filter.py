@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 import pytest
 from gatekeeper.recipe import matches_condition, apply_filter
 

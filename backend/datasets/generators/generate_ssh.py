@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """Deterministic, labelled SSH data. Never called by the orchestrator."""
 from __future__ import annotations
 

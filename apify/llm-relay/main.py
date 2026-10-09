@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """Small Standby HTTP relay; request and upstream response bodies stay opaque."""
 from __future__ import annotations
 

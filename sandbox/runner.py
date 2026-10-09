@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 """Disposable child process; trusted runtime is separate from skill namespaces."""
 from __future__ import annotations
 

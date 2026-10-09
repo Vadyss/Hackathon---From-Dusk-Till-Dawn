@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Adam Krúpa and Ondra Csajka. All rights reserved.
 from copy import deepcopy
 import pytest
 from gatekeeper.manifest import validate_manifest
