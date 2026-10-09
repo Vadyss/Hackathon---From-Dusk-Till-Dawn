@@ -222,7 +222,7 @@ export function Activity({ run }: { run: RunState }) {
   const status = runStatus(run);
   const working = status === "running";
   const [open, setOpen] = useState(isActive(status));
-  const steps = run.events;
+  const steps = run.events.filter((event) => event.type !== "llm_usage");
   const phase = currentPhase(run);
 
   const summary = lastSummary(run);

@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { audioUrl } from "@/lib/api";
 import { dataOf, formatCost, formatDuration, formatNumber, lastOf, reusedSkillNames, runCreatedAt, runRequest, runStatus } from "@/lib/derive";
 import type { RunState } from "@/lib/engine";
+import { Usage } from "./Usage";
 import { Activity } from "./Activity";
 import { Outcome, ReviewCard } from "./Approval";
 import { CodeBlock, StatusPill } from "./ui";
@@ -78,6 +79,7 @@ export function DetectionRun({ run, title, onEdit, busy }: {
             <div className="panel-header"><h2>Detection rule</h2></div>
             <CodeBlock value={recipe} label={`${recipeName}.json`} />
           </article>}
+          <Usage run={run} />
           <Outcome run={run} />
         </div>
         <aside className="run-aside" aria-label="Run details">
@@ -89,7 +91,7 @@ export function DetectionRun({ run, title, onEdit, busy }: {
             </dl>
           </article>
           <article className="panel" aria-label="Run statistics">
-            <div className="panel-header"><h2>Usage</h2></div>
+            <div className="panel-header"><h2>Run statistics</h2></div>
             <dl className="context-list">
               <div><dt>Duration</dt><dd>{formatDuration(summary?.stats?.duration_ms)}</dd></div>
               <div><dt>LLM calls</dt><dd>{formatNumber(summary?.stats?.llm_calls)}</dd></div>
