@@ -17,6 +17,8 @@ def test_decimal_cost_subtracts_cached_input_without_double_counting():
     assert calculate_cost("test", 1000, 200, 100, rates=RATES) == Decimal("0.00264")
     assert calculate_cost("test", 0, 0, 0, rates=RATES) == Decimal(0)
     assert calculate_cost("missing", 10, 0, 2, rates=RATES) is None
+    assert calculate_cost("missing", 0, 0, 0, rates=RATES) is None
+    assert calculate_cost("deepseek/deepseek-v4.1-flash", 0, 0, 0) is None
     assert calculate_cost("test", 1000, None, 100, rates=RATES) is None
     assert calculate_cost("test", 10, 20, 100, rates=RATES) is None
 

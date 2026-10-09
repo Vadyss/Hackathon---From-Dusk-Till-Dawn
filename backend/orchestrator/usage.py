@@ -48,6 +48,8 @@ def prices():
 
 def calculate_cost(model, input_tokens, cached_tokens, output_tokens, *, cache_write_tokens=0, rates=None):
     rates = (prices() if rates is None else rates).get(model, {})
+    if rates.get("currency") != "USD" or money(rates.get("input_per_million")) is None or money(rates.get("output_per_million")) is None:
+        return None
     if None in (input_tokens, cached_tokens, output_tokens, cache_write_tokens):
         return None
     if min(input_tokens, cached_tokens, output_tokens, cache_write_tokens) < 0 or cached_tokens + cache_write_tokens > input_tokens:
