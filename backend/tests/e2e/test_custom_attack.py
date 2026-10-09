@@ -32,7 +32,7 @@ class CustomClient(MockLlm):
             count_call(self.settings.llm_max_calls_per_run)
             if role == "planner":
                 result = {"intent": "detection_rule", "log_source": "ssh", "attack_type": "custom",
-                          "custom_attack": {"slug": SLUG, "description": "Neobvyklá série pokusů o přihlášení během pěti minut."},
+                          "custom_attack": {"slug": SLUG, "description": "An unusual sequence of login attempts within five minutes."},
                           "skills": [{"name": "ssh_parser", "role": "parser", "status": "existing"},
                                      {"name": "count_window", "role": "aggregation", "status": "existing"}]}
             elif role == "examiner":
@@ -42,7 +42,7 @@ class CustomClient(MockLlm):
                           "filter": [{"field": "outcome", "op": "eq", "value": "failure"}],
                           "aggregation": {"skill": "count_window", "params": {"group_by": "src_ip", "window_s": 300}},
                           "condition": {"field": "count", "op": "gte", "value": 10}},
-                          "explanation": "Hledám opakované neúspěšné přihlášení."}
+                          "explanation": "Detecting repeated failed logins."}
             return LlmResult(json.dumps(result, ensure_ascii=False), None, "mock-independent")
         return await super().chat(role, system, user, **kwargs)
 
@@ -59,7 +59,7 @@ def test_custom_attack_complete_with_private_data_and_original_events(tmp_path, 
     monkeypatch.setattr("gatekeeper.examiner_data.secrets.randbits", lambda _: next(seeds))
     app, llm = custom_app(tmp_path)
     with TestClient(app) as client, client.websocket_connect("/api/ws") as ws:
-        run_id, events = start(client, "Chci vlastní typ neobvyklé SSH série.")
+        run_id, events = start(client, "I want a custom type of unusual SSH sequence.")
         assert [event["type"] for event in events] == ["run_started", "plan_ready", "skill_reused", "skill_reused",
                  "rule_drafted", "rule_evaluated", "validation_done", "summary", "awaiting_approval"]
         assert events[-1]["data"]["metrics_validation"]["passed"]
@@ -98,7 +98,7 @@ def test_invalid_custom_plan_can_be_corrected_before_single_examination(tmp_path
 
     app, llm = custom_app(tmp_path, client_type=CorrectingClient)
     with TestClient(app) as client:
-        run_id, events = start(client, "Chci vlastní typ SSH útoku.")
+        run_id, events = start(client, "I want a custom SSH attack type.")
         assert events[-1]["type"] == "awaiting_approval", events
         assert [call["role"] for call in llm.calls] == ["planner", "planner", "examiner", "rule_author", "summary"]
         assert events[1]["type"] == "policy_rejected"
@@ -115,7 +115,7 @@ def test_invalid_custom_plan_can_be_corrected_before_single_examination(tmp_path
 def test_custom_attack_failure_is_request_rejected_and_discards_data(tmp_path, enabled, generator, examiner_calls):
     app, llm = custom_app(tmp_path, enabled, generator)
     with TestClient(app) as client:
-        run_id, events = start(client, "Chci vlastní typ útoku.")
+        run_id, events = start(client, "I want a custom attack type.")
         assert [event["type"] for event in events] == ["run_started", "run_failed"]
         assert events[-1]["data"]["reason_code"] == "REQUEST_REJECTED"
         assert len([call for call in llm.calls if call["role"] == "examiner"]) == examiner_calls

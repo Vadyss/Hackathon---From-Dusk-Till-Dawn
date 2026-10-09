@@ -65,7 +65,7 @@ async def prepare_approval(app, run_id):
     if not run.events:
         await asyncio.sleep(.01)
     await app.state.emitter.emit(run, "validation_done", "validation", {"dataset": "validation", "metrics": METRICS})
-    await app.state.emitter.emit(run, "summary", "approval", {"text": "Hotovo.", "stats": run.stats.snapshot()})
+    await app.state.emitter.emit(run, "summary", "approval", {"text": "Done.", "stats": run.stats.snapshot()})
     recipe = {"name": "test_rule"}
     run.pending = PendingApproval(recipe, METRICS, METRICS, [], "ssh_bruteforce")
     await app.state.emitter.emit(run, "awaiting_approval", "approval", {

@@ -1,6 +1,6 @@
 {
   "name": "count_window", "version": 1, "kind": "aggregation",
-  "description": "Počítá události v posuvném časovém okně pro každou skupinu.",
+  "description": "Count events per group in an inclusive sliding time window.",
   "entrypoint": "run", "inputs": "events", "outputs": ["count"],
   "params": {
     "group_by": {"type": "string|string[]", "required": true},

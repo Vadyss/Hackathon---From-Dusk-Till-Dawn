@@ -15,8 +15,8 @@ from orchestrator.llm import HttpLlmClient, LlmError, LlmResult
 from tests.fakes import InProcessSandbox
 
 ROOT = Path(__file__).resolve().parents[2]
-DESCRIPTION = "Jedna IP zkouší mnoho hesel na jeden účet SSH."
-FORMAT = "OpenSSH auth.log; časová razítka RFC 3339, zprávy Failed/Accepted."
+DESCRIPTION = "A single IP tries many passwords for one SSH account."
+FORMAT = "OpenSSH auth.log; RFC 3339 timestamps, Failed/Accepted messages."
 
 
 class MockExaminer:

@@ -1,4 +1,6 @@
 from copy import deepcopy
+import ast
+import json
 from pathlib import Path
 import shutil
 import pytest
@@ -44,10 +46,68 @@ def test_seed_install_reuse_restart_and_candidate_cleanup(tmp_path,gk_manifests)
 def test_seed_update(tmp_path):
     registry = new_registry(tmp_path)
     seed_copy = tmp_path/'seed_copy'; shutil.copytree(SEEDS,seed_copy)
-    path = seed_copy/'count_window/skill.py'; path.write_text(path.read_text()+'\n# nová verze\n')
+    path = seed_copy/'count_window/skill.py'; path.write_text(path.read_text()+'\n# new version\n')
     registry.initialize(seed_copy)
     assert registry.skill_info('count_window').version == 2
     assert registry.read_skill(None,'count_window')[1]['version'] == 2
+
+
+@pytest.mark.parametrize('name', ['count_window', 'ssh_parser'])
+def test_english_seed_upgrade_preserves_usage_and_integrity(tmp_path, name):
+    legacy_seeds = tmp_path / 'legacy_seeds'
+    shutil.copytree(SEEDS, legacy_seeds)
+    legacy_descriptions = {
+        'count_window': 'Počítá události v posuvném časovém okně pro každou skupinu.',
+        'ssh_parser': 'Převede řádky auth.log z OpenSSH (RFC 3339) na události.',
+    }
+    for seed_name, description in legacy_descriptions.items():
+        skill_path = legacy_seeds / seed_name / 'skill.py'
+        source = skill_path.read_text(encoding='utf-8')
+        module = ast.parse(source)
+        assert ast.get_docstring(module)
+        docstring = module.body.pop(0)
+        legacy_source = ''.join(source.splitlines(keepends=True)[docstring.end_lineno:])
+        assert ast.dump(module, include_attributes=False) == ast.dump(ast.parse(legacy_source), include_attributes=False)
+        skill_path.write_text(legacy_source, encoding='utf-8')
+        manifest_path = legacy_seeds / seed_name / 'manifest.json'
+        manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+        manifest['description'] = description
+        manifest_path.write_text(json.dumps(manifest, ensure_ascii=False), encoding='utf-8')
+
+    state = tmp_path / 'state'
+    registry = Registry(state, AuditLog(state))
+    registry.initialize(legacy_seeds)
+    registry.note_reuse('run_aaaa', [name])
+    registry.note_reuse('run_bbbb', [name])
+    old = deepcopy(registry.index['skills'][name])
+    assert registry.skill_info(name).version == 1
+    assert registry.skill_info(name).description == legacy_descriptions[name]
+
+    # The existing writer publishes the updated seed with matching digests.
+    restarted = Registry(state, registry.audit)
+    restarted.initialize(SEEDS)
+    code, manifest, upgraded = restarted.read_skill(None, name)
+    expected = json.loads((SEEDS / name / 'manifest.json').read_text(encoding='utf-8'))
+    assert manifest['description'] == expected['description']
+    assert restarted.skill_info(name).description == expected['description']
+    assert upgraded['version'] == manifest['version'] == 2
+    assert upgraded['sha256'] != old['sha256']
+    assert upgraded['manifest_sha256'] != old['manifest_sha256']
+    assert upgraded['tests_sha256'] == old['tests_sha256']
+    assert upgraded['times_used'] == old['times_used'] == 2
+    assert upgraded['last_used_at'] == old['last_used_at']
+    assert upgraded['origin'] == 'seed' and upgraded['created_by_run'] is None
+    assert code == (SEEDS / name / 'skill.py').read_text(encoding='utf-8')
+    assert restarted.verify_integrity() == []
+    assert not list((state / 'quarantine').iterdir())
+    assert not list((state / 'registry').glob('.tmp-*'))
+    assert not list((state / 'registry').glob('.old-*'))
+    assert verify_audit(registry.audit.path)[0]
+
+    # The same source is idempotent on every later restart.
+    same_source = deepcopy(restarted.index)
+    restarted.initialize(SEEDS)
+    assert restarted.index == same_source
 
 
 @pytest.mark.parametrize('filename',['skill.py','manifest.json','test_skill.py'])
@@ -80,7 +140,7 @@ def test_promotion_exact_validated_recipe_and_candidates(tmp_path,gk_manifests,g
     with pytest.raises(IntegrityError): registry.promote('run_aaaa',recipe,[info,info],valid)
     valid['metrics_validation'] = valid['metrics_validation'].model_copy(update={'passed':False})
     with pytest.raises(IntegrityError): registry.promote('run_aaaa',recipe,[info],valid)
-    installed = registry.promote('run_aaaa',recipe,[info],validated(recipe),'V pořádku.')
+    installed = registry.promote('run_aaaa',recipe,[info],validated(recipe),'Looks good.')
     assert installed[0].status == 'installed'
     assert registry.candidate_infos('run_aaaa') == []
     assert registry.approved_rule('ssh_bruteforce') == recipe

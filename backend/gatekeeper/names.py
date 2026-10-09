@@ -25,13 +25,13 @@ def valid_run_id(value: object) -> bool:
 
 def require_name(value: str) -> str:
     if not valid_name(value):
-        raise ValueError("Neplatný název.")
+        raise ValueError("Invalid name.")
     return value
 
 
 def require_run_id(value: str) -> str:
     if not valid_run_id(value):
-        raise ValueError("Neplatný identifikátor běhu.")
+        raise ValueError("Invalid run identifier.")
     return value
 
 
@@ -39,7 +39,7 @@ def safe_join(base: Path, *parts: str) -> Path:
     root = Path(base).resolve()
     candidate = root.joinpath(*parts).resolve()
     if candidate == root or root not in candidate.parents:
-        raise ValueError("Cesta opouští povolenou složku.")
+        raise ValueError("The path leaves the allowed directory.")
     return candidate
 
 

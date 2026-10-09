@@ -81,7 +81,7 @@ class Gatekeeper:
     def check_plan(self, run_id, raw):
         require_run_id(run_id)
         if isinstance(raw, dict) and raw.get("attack_type") == "custom":
-            return PlanVerdict(request_rejected=True, reason="Pro tento typ útoku nejprve musí vzniknout nezávislá testovací data.")
+            return PlanVerdict(request_rejected=True, reason="Independent test data must be created for this attack type first.")
         verdict = check_plan(raw, self.catalog(run_id), self.policy)
         if verdict.ok:
             self._plans[run_id] = deepcopy(verdict.plan)
@@ -94,7 +94,7 @@ class Gatekeeper:
     async def prepare_custom_plan(self, run_id, raw):
         require_run_id(run_id)
         raw = deepcopy(raw)
-        reason = "Pro tento typ útoku se nepodařilo připravit ověřitelná testovací data."
+        reason = "Verifiable test data could not be prepared for this attack type."
         try:
             custom = raw.get("custom_attack") if isinstance(raw, dict) else None
             if (not self.examiner_enabled or self.examiner is None or run_id in self._examiner_started
@@ -144,17 +144,17 @@ class Gatekeeper:
         require_run_id(run_id)
         plan = self._plans.get(run_id)
         if plan is None or not any(s.model_dump() == spec.model_dump() for s in plan.missing_skills):
-            raise IntegrityError("Dovednost neodpovídá schválenému plánu.")
+            raise IntegrityError("The skill does not match the approved plan.")
         key = (run_id, spec.name)
         self._skill_attempts[key] = self._skill_attempts.get(key, 0) + 1
         if self._skill_attempts[key] > self.policy.attempts.forge_per_skill:
-            raise IntegrityError("Překročen počet pokusů kovárny.")
+            raise IntegrityError("The forge attempt limit has been exceeded.")
         violations = []
         if spec.name == "data":
-            return SkillVerdict(kind="policy_rejected", violations=[Violation(code="INVALID_NAME", detail="Název data je vyhrazený interním testovacím datům.")])
+            return SkillVerdict(kind="policy_rejected", violations=[Violation(code="INVALID_NAME", detail="The name data is reserved for internal test data.")])
         if (not isinstance(draft, dict) or not isinstance(draft.get("code"), str)
                 or not isinstance(draft.get("tests"), str) or not isinstance(draft.get("manifest"), dict)):
-            violations = [Violation(code="INVALID_OUTPUT", detail="Kovárna musí vrátit manifest, kód a testy.")]
+            violations = [Violation(code="INVALID_OUTPUT", detail="The forge must return a manifest, code and tests.")]
             manifest = None
         else:
             manifest, violations = validate_manifest(draft["manifest"], spec, self.policy)
@@ -177,11 +177,11 @@ class Gatekeeper:
         if result["status"] != "ok" and failed == 0:
             failed += 1
             total += 1
-            failures.append({"name": "execution", "error": "Překročen časový limit." if result["status"] == "timeout" else "Testy dovednosti selhaly."})
+            failures.append({"name": "execution", "error": "Time limit exceeded." if result["status"] == "timeout" else "Skill tests failed."})
         if report["total"] < self.policy.skills.min_llm_tests:
             total += 1
             failed += 1
-            failures.append({"name": "test_count", "error": "Dovednost obsahuje málo testů."})
+            failures.append({"name": "test_count", "error": "The skill contains too few tests."})
         hidden_total, hidden_failures = await run_hidden_tests(manifest, draft["code"], self.sandbox, self.policy,
              parser_lines=self.datasets.parser_lines(plan.log_source) if spec.role == "parser" else None)
         total += hidden_total
@@ -191,7 +191,7 @@ class Gatekeeper:
             self.audit.append("skill_tests_failed", run_id, {"skill": spec.name, "attempt": self._skill_attempts[key],
                                                             "tests_total": total, "tests_failed": failed})
             return SkillVerdict(kind="tests_failed", tests_total=total, tests_failed=failed,
-                                failures=failures[:5], error_excerpt=failures[0]["error"][:500] if failures else "Testy selhaly.")
+                                failures=failures[:5], error_excerpt=failures[0]["error"][:500] if failures else "Tests failed.")
         info = self.registry.save_candidate(run_id, manifest, draft["code"], draft["tests"], self._skill_attempts[key])
         meta = self.registry.read_skill(run_id, spec.name)[2]
         return SkillVerdict(kind="candidate", skill_info=info, manifest=manifest, tests_total=total,
@@ -204,7 +204,7 @@ class Gatekeeper:
         require_run_id(run_id)
         stored = self._plans.get(run_id)
         if stored is None or stored.model_dump() != plan.model_dump():
-            raise IntegrityError("Recept neodpovídá schválenému plánu.")
+            raise IntegrityError("The recipe does not match the approved plan.")
         manifests = {m["name"]: m for m in self.registry.manifests(run_id)}
         verdict = check_recipe(raw, stored, manifests, self.policy)
         if verdict.ok:
@@ -222,14 +222,14 @@ class Gatekeeper:
         recipe = deepcopy(recipe)
         require_run_id(run_id)
         if self._checked.get(run_id) != recipe_sha256(recipe):
-            raise IntegrityError("Recept neprošel kontrolou vrátného.")
+            raise IntegrityError("The recipe did not pass gatekeeper checks.")
         plan = self._plans[run_id]
         data = self._dataset(run_id, plan.log_source, "tuning")
         digests = self._skill_digests(run_id, recipe)
         result = await evaluate_recipe(recipe, data.lines, data.labels, lambda name: self.registry.read_skill(run_id, name),
                                        self.sandbox, self.policy, feedback=True, audit=self.audit, run_id=run_id)
         if digests != self._skill_digests(run_id, recipe):
-            raise IntegrityError("Dovednost se během měření změnila.")
+            raise IntegrityError("The skill changed during evaluation.")
         self._tuning[run_id] = {"recipe_sha256": recipe_sha256(recipe), "metrics": result.metrics,
                                "skill_digests": digests}
         self.audit.append("rule_evaluated", run_id, {"dataset": "tuning", "metrics": result.metrics.model_dump(mode="json"),
@@ -242,17 +242,17 @@ class Gatekeeper:
         tuning = self._tuning.get(run_id)
         if (not tuning or not tuning["metrics"].passed or tuning["recipe_sha256"] != recipe_sha256(recipe)
                 or run_id in self._validation_started):
-            raise IntegrityError("Ověření vyžaduje úspěšné ladění; lze ho provést jen jednou.")
+            raise IntegrityError("Validation requires successful tuning and can only be performed once.")
         digests = self._skill_digests(run_id, recipe)
         if digests != tuning["skill_digests"]:
-            raise IntegrityError("Dovednost se od ladění změnila.")
+            raise IntegrityError("The skill changed after tuning.")
         self._validation_started.add(run_id)
         plan = self._plans[run_id]
         data = self._dataset(run_id, plan.log_source, "validation")
         result = await evaluate_recipe(recipe, data.lines, data.labels, lambda name: self.registry.read_skill(run_id, name),
                                        self.sandbox, self.policy, audit=self.audit, run_id=run_id)
         if digests != self._skill_digests(run_id, recipe):
-            raise IntegrityError("Dovednost se během ověření změnila.")
+            raise IntegrityError("The skill changed during validation.")
         self._validated[run_id] = {"recipe_sha256": recipe_sha256(recipe), "attack_type": plan.attack_type,
                                  "metrics_tuning": tuning["metrics"], "metrics_validation": result.metrics,
                                  "skill_digests": digests}
@@ -282,7 +282,7 @@ class Gatekeeper:
             tuning = self._tuning.get(run_id, {}).get("metrics")
             validation = self._validated.get(run_id, {}).get("metrics_validation")
             metric_text = ""
-            for label, metrics in (("Ladění", tuning), ("Ověření", validation)):
+            for label, metrics in (("Tuning", tuning), ("Validation", validation)):
                 if metrics:
                     metric_text += f" {label}: precision={metrics.precision}, recall={metrics.recall}."
             self._lessons.record(run_id, plan.attack_type if plan else "unknown", reason_code,

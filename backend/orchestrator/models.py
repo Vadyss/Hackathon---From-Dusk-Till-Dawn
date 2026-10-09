@@ -58,9 +58,9 @@ class RecipeData(ContractModel):
     @classmethod
     def valid_display_recipe(cls, value: dict) -> dict:
         if not isinstance(value.get("name"), str):
-            raise ValueError("Recept musí mít název.")
+            raise ValueError("The recipe must have a name.")
         if len(json.dumps(value, ensure_ascii=False, separators=(",", ":"), allow_nan=False)) > 4096:
-            raise ValueError("Recept je příliš dlouhý.")
+            raise ValueError("The recipe is too long.")
         return value
 
 
@@ -80,7 +80,7 @@ class SkillReusedData(ContractModel):
     @classmethod
     def installed(cls, value: SkillInfo) -> SkillInfo:
         if value.status != "installed":
-            raise ValueError("Dovednost musí být nainstalovaná.")
+            raise ValueError("Skill must be installed.")
         return value
 
 
@@ -117,7 +117,7 @@ class SkillCandidateReadyData(ContractModel):
     @classmethod
     def candidate(cls, value: SkillInfo) -> SkillInfo:
         if value.status != "candidate" or value.origin != "agent":
-            raise ValueError("Dovednost musí být kandidát od agenta.")
+            raise ValueError("Skill must be an agent-created candidate.")
         return value
 
 
@@ -156,7 +156,7 @@ class AwaitingApprovalData(RecipeData):
     @classmethod
     def candidates(cls, value: list[SkillInfo]) -> list[SkillInfo]:
         if any(s.status != "candidate" for s in value):
-            raise ValueError("Nové dovednosti musí být kandidáti.")
+            raise ValueError("New skills must be candidates.")
         return value
 
 
@@ -221,7 +221,7 @@ class CreateRunBody(BaseModel):
         try:
             value.encode("utf-8")
         except UnicodeEncodeError:
-            raise ValueError("Požadavek obsahuje neplatný Unicode.") from None
+            raise ValueError("The request contains invalid Unicode.") from None
         return value
 
 

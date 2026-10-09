@@ -20,9 +20,9 @@ async def main() -> int:
         result = await client.chat("planner", 'Return only JSON {"ok":true}.', "Connection check; do not produce source code.")
         parsed = result if isinstance(result, ParseFailure) else extract_json(result.text)
         if isinstance(parsed, ParseFailure):
-            print("Poskytovatel odpověděl, ale nevrátil platný JSON.")
+            print("The provider responded but did not return valid JSON.")
             return 1
-        print(f"Spojení funguje. Model: {result.model}; tokeny: {result.total_tokens}.")
+        print(f"Connection succeeded. Model: {result.model}; tokens: {result.total_tokens}.")
         return 0
     except LlmError as error:
         print(str(error))

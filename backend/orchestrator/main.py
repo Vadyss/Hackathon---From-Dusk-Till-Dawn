@@ -63,7 +63,7 @@ def create_app(*, settings=None, gatekeeper=None, sandbox=None, roles=None, pipe
             except Exception:
                 available = False
             if not available:
-                logging.getLogger(__name__).warning("Sandbox není dostupný; běh skončí SANDBOX_ERROR.")
+                logging.getLogger(__name__).warning("Sandbox is unavailable; the run will end with SANDBOX_ERROR.")
             yield
         finally:
             for resource in (app.state.store, app.state.hub, sandbox_client, app.state.voice, app.state.roles):
@@ -72,7 +72,7 @@ def create_app(*, settings=None, gatekeeper=None, sandbox=None, roles=None, pipe
                     try:
                         await close()
                     except Exception as exc:
-                        logging.getLogger(__name__).error("Nepodařilo se uzavřít zdroj backendu (%s).", type(exc).__name__)
+                        logging.getLogger(__name__).error("Failed to close a backend resource (%s).", type(exc).__name__)
 
     app = FastAPI(title="Frankenstein", lifespan=lifespan, docs_url=None, redoc_url=None)
     register_handlers(app)
@@ -93,7 +93,7 @@ def create_app(*, settings=None, gatekeeper=None, sandbox=None, roles=None, pipe
     async def create_run(body: CreateRunBody):
         text = body.request.strip()
         if not 1 <= len(text) <= 2000:
-            raise ApiError(400, "INVALID_REQUEST", "Požadavek musí mít 1 až 2000 znaků.")
+            raise ApiError(400, "INVALID_REQUEST", "The request must contain 1 to 2000 characters.")
         run = await app.state.store.create(text)
         pipeline = pipeline_runner
         if pipeline is None:
@@ -112,11 +112,11 @@ def create_app(*, settings=None, gatekeeper=None, sandbox=None, roles=None, pipe
     async def get_events(run_id: str, after_seq: str = "0"):
         run = app.state.store.get(run_id)
         if not after_seq.isascii() or not after_seq.isdigit():
-            raise ApiError(400, "INVALID_REQUEST", "Neplatný parametr after_seq.")
+            raise ApiError(400, "INVALID_REQUEST", "Invalid after_seq parameter.")
         try:
             number = int(after_seq)
         except ValueError:
-            raise ApiError(400, "INVALID_REQUEST", "Neplatný parametr after_seq.") from None
+            raise ApiError(400, "INVALID_REQUEST", "Invalid after_seq parameter.") from None
         async with run.lock:
             return {"events": [e for e in run.events if e["seq"] > number]}
 
@@ -130,7 +130,7 @@ def create_app(*, settings=None, gatekeeper=None, sandbox=None, roles=None, pipe
         run = app.state.store.get(run_id)
         reason = body.reason.strip()
         if not 1 <= len(reason) <= 500:
-            raise ApiError(400, "INVALID_REQUEST", "Důvod musí mít 1 až 500 znaků.")
+            raise ApiError(400, "INVALID_REQUEST", "The reason must contain 1 to 500 characters.")
         return await reject(run, reason, app.state.gatekeeper, app.state.emitter)
 
     @router.get("/skills")
@@ -141,7 +141,7 @@ def create_app(*, settings=None, gatekeeper=None, sandbox=None, roles=None, pipe
     async def get_audio(run_id: str):
         run = app.state.store.get(run_id)
         if run.audio is None:
-            raise ApiError(404, "AUDIO_NOT_FOUND", "Běh nemá hlasové shrnutí.")
+            raise ApiError(404, "AUDIO_NOT_FOUND", "This run has no audio summary.")
         return Response(run.audio, media_type="audio/mpeg")
 
     @router.websocket("/ws")

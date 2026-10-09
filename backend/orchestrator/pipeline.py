@@ -7,17 +7,18 @@ import logging
 from gatekeeper.types import ParseFailure, SandboxError
 from orchestrator.llm import LlmBudgetExceeded, LlmError, bind_run_counters, reset_run_counters
 from orchestrator.run_store import PendingApproval
+from orchestrator.sandbox_messages import present_sandbox_error
 from orchestrator.text import clip
 
 logger = logging.getLogger(__name__)
 
 REASONS = {
-    "PLAN_INVALID": "Plán neprošel kontrolou ani ve 3. pokusu.",
-    "RULE_FAILED": "Pravidlo nesplnilo hranice ani ve 3. pokusu.",
-    "VALIDATION_FAILED": "Pravidlo neprošlo na ověřovací sadě.",
-    "LLM_ERROR": "Volání jazykového modelu selhalo.",
-    "SANDBOX_ERROR": "Sandbox je nedostupný nebo selhal.",
-    "INTERNAL_ERROR": "Neočekávaná chyba backendu.",
+    "PLAN_INVALID": "The plan failed validation after 3 attempts.",
+    "RULE_FAILED": "Rule did not meet the thresholds after 3 attempts.",
+    "VALIDATION_FAILED": "Rule failed the validation dataset.",
+    "LLM_ERROR": "The language model request failed.",
+    "SANDBOX_ERROR": "Sandbox is unavailable or failed.",
+    "INTERNAL_ERROR": "Unexpected backend error.",
 }
 
 
@@ -29,7 +30,7 @@ async def run_pipeline(run, gk, roles, emitter, settings, voice=None):
         if not run.events:
             await emitter.emit(run, "run_started", "intake", {"request": run.request})
         if run.status in {"running", "awaiting_approval"}:
-            text = clip(reason or REASONS.get(reason_code, "Požadavek nelze zpracovat."), 500)
+            text = clip(reason or REASONS.get(reason_code, "The request cannot be processed."), 500)
             await emitter.emit(run, "run_failed", context["phase"], {"reason_code": reason_code, "reason": text})
             gk.record_failure(run.run_id, reason_code, text, context["recipe"])
 
@@ -47,7 +48,7 @@ async def run_pipeline(run, gk, roles, emitter, settings, voice=None):
             else:
                 verdict = gk.check_plan(run.run_id, raw)
             if verdict.request_rejected:
-                await fail("REQUEST_REJECTED", "Požadavek nelze zpracovat: " + verdict.reason)
+                await fail("REQUEST_REJECTED", "The request cannot be processed: " + verdict.reason)
                 return
             if verdict.ok:
                 plan = verdict.plan
@@ -79,7 +80,8 @@ async def run_pipeline(run, gk, roles, emitter, settings, voice=None):
                     feedback = {"violations": result.violations}
                 elif result.kind == "tests_failed":
                     await emitter.emit(run, "skill_tests_failed", "forge", {"skill": spec.name, "attempt": attempt,
-                        "tests_total": result.tests_total, "tests_failed": result.tests_failed, "error_excerpt": result.error_excerpt})
+                        "tests_total": result.tests_total, "tests_failed": result.tests_failed,
+                        "error_excerpt": present_sandbox_error(result.error_excerpt)})
                     feedback = {"failures": result.failures[:5], "error_excerpt": result.error_excerpt}
                 else:
                     await emitter.emit(run, "skill_candidate_ready", "forge", {"skill": result.skill_info, "attempt": attempt,
@@ -88,7 +90,7 @@ async def run_pipeline(run, gk, roles, emitter, settings, voice=None):
                     run.stats.skills_built += 1
                     break
             else:
-                await fail("FORGE_FAILED", f"Dovednost {spec.name} neprošla ani ve 3. pokusu.")
+                await fail("FORGE_FAILED", f"Skill {spec.name} failed after 3 attempts.")
                 return
         context["phase"] = "rule"
         prior = gk.approved_rule(plan.attack_type)
@@ -97,9 +99,9 @@ async def run_pipeline(run, gk, roles, emitter, settings, voice=None):
         for attempt in range(1, 4):
             output = await roles.rule_author.draft(run.request, plan, catalog, samples[plan.log_source], prior, lessons, feedback, attempt=attempt)
             raw_recipe = output.get("recipe") if isinstance(output, dict) else output
-            explanation = output.get("explanation", "") if isinstance(output, dict) else "Model nevrátil platný návrh."
+            explanation = output.get("explanation", "") if isinstance(output, dict) else "The model did not return a valid proposal."
             if not isinstance(explanation, str):
-                explanation = "Model nevrátil platné vysvětlení."
+                explanation = "The model did not return a valid explanation."
             context["recipe"] = raw_recipe if isinstance(raw_recipe, dict) else None
             shown = gk.display_recipe(raw_recipe)
             await emitter.emit(run, "rule_drafted", "rule", {"attempt": attempt, "max_attempts": 3, "recipe": shown, "explanation": explanation})
@@ -128,8 +130,8 @@ async def run_pipeline(run, gk, roles, emitter, settings, voice=None):
         try:
             summary = await roles.summarizer.summarize(run.request, plan, recipe, tuning, validation, run.stats.snapshot())
         except Exception:
-            logger.warning("Shrnutí použije šablonu.")
-            summary = f"Postaveno {run.stats.skills_built} dovedností, znovu použito {run.stats.skills_reused}. Pravidlo prošlo laděním i ověřením a čeká na schválení."
+            logger.warning("The summary will use a template.")
+            summary = f"Built {run.stats.skills_built} skills, reused {run.stats.skills_reused}. Rule passed tuning and validation and is awaiting approval."
         stats = run.stats.snapshot()
         await emitter.emit(run, "summary", "approval", {"text": summary, "stats": stats})
         if voice and voice.enabled:
@@ -142,18 +144,18 @@ async def run_pipeline(run, gk, roles, emitter, settings, voice=None):
     try:
         await asyncio.wait_for(work(), timeout=settings.run_timeout_s)
     except LlmBudgetExceeded:
-        await fail("LLM_ERROR", "Překročen rozpočet volání jazykového modelu.")
+        await fail("LLM_ERROR", "The language model call budget was exceeded.")
     except LlmError:
         await fail("LLM_ERROR")
     except SandboxError:
         await fail("SANDBOX_ERROR")
     except asyncio.TimeoutError:
-        await fail("INTERNAL_ERROR", "Běh překročil časový limit.")
+        await fail("INTERNAL_ERROR", "The run exceeded its time limit.")
     except asyncio.CancelledError:
-        await fail("INTERNAL_ERROR", "Běh byl přerušen.")
+        await fail("INTERNAL_ERROR", "The run was interrupted.")
         raise
     except Exception as exc:
-        logger.error("Běh selhal (%s).", type(exc).__name__)
+        logger.error("Run failed (%s).", type(exc).__name__)
         await fail("INTERNAL_ERROR")
     finally:
         logger.info("LLM run_finished run_id=%s status=%s llm_calls=%d tokens_total=%s",
@@ -164,5 +166,5 @@ async def run_pipeline(run, gk, roles, emitter, settings, voice=None):
             if run.status == "failed":
                 await gk.discard(run.run_id)
         except Exception:
-            logger.error("Úklid neúspěšného běhu selhal.")
+            logger.error("Failed run cleanup failed.")
         reset_run_counters(token)

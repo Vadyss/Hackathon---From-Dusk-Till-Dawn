@@ -10,15 +10,15 @@ from gatekeeper.audit import verify_audit
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Ověření auditního řetězu SHA-256.")
+    parser = argparse.ArgumentParser(description="Verify the SHA-256 audit chain.")
     parser.add_argument("path", type=Path, nargs="?", default=Path("/data/audit.jsonl"))
     args = parser.parse_args()
     if not args.path.is_file():
-        print("Auditní soubor neexistuje.", file=sys.stderr)
+        print("Audit file not found.", file=sys.stderr)
         return 1
     ok, errors = verify_audit(args.path)
     if ok:
-        print("Auditní řetěz je platný.")
+        print("The audit chain is valid.")
         return 0
     for error in errors:
         print(error, file=sys.stderr)

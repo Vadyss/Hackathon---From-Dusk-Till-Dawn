@@ -41,7 +41,7 @@ def test_timeout_never_leaves_running_state(tmp_path):
     with TestClient(create_app(settings=settings, sandbox=InProcessSandbox(), roles=SimpleNamespace(planner=Planner()))) as client:
         run_id, events = start(client, "hello")
         assert events[-1]["data"]["reason_code"] == "INTERNAL_ERROR"
-        assert "časový limit" in events[-1]["data"]["reason"]
+        assert "time limit" in events[-1]["data"]["reason"]
 
 
 def test_three_invalid_plans_are_bounded_and_reported(tmp_path):
@@ -86,4 +86,4 @@ def test_summary_failure_uses_fallback(tmp_path):
     with TestClient(create_app(settings=settings, sandbox=InProcessSandbox(), roles=roles)) as client:
         _, events = start(client, "inject")
         assert events[-1]["type"] == "awaiting_approval"
-        assert "čeká na schválení" in next(e["data"]["text"] for e in events if e["type"] == "summary")
+        assert "is awaiting approval" in next(e["data"]["text"] for e in events if e["type"] == "summary")

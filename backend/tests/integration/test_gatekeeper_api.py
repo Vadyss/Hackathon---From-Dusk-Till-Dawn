@@ -28,7 +28,7 @@ class TrackingSandbox(InProcessSandbox):
     async def run(self,*args,**kwargs):
         self.calls.append('run')
         if self.fail:
-            raise SandboxError('Sandbox nedostupný.')
+            raise SandboxError('Sandbox unavailable.')
         if self.delay:
             await asyncio.sleep(.01)
         result=await super().run(*args,**kwargs)
@@ -89,7 +89,7 @@ async def test_requires_authoritative_plan_spec(gk):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('bad',[ParseFailure('neplatný JSON'),None,{'manifest':ParseFailure('chyba'),'code':'','tests':''}])
+@pytest.mark.parametrize('bad',[ParseFailure('invalid JSON'),None,{'manifest':ParseFailure('error'),'code':'','tests':''}])
 async def test_parse_failure_is_policy_rejection_without_execution(gk,bad):
     plan=gk.check_plan(RUN,missing_plan()).plan
     result=await gk.submit_skill(RUN,plan.missing_skills[0],bad)
@@ -103,7 +103,7 @@ async def test_minimum_four_llm_tests_enforced(gk):
     proposal=draft(); proposal['tests']='from skill import run\ndef test_empty():\n    assert run([], {"group_by":"src_ip","distinct_field":"user","window_s":60}) == []\n'
     result=await gk.submit_skill(RUN,plan.missing_skills[0],proposal)
     assert result.kind=='tests_failed' and result.tests_failed==1 and result.tests_total==7
-    assert result.failures==[{'name':'test_count','error':'Dovednost obsahuje málo testů.'}]
+    assert result.failures==[{'name':'test_count','error':'The skill contains too few tests.'}]
     assert not gk.candidates_info(RUN)
 
 
@@ -192,7 +192,7 @@ async def test_promotion_requires_validation_and_rejects_recipe_and_disk_tamperi
     assert validation.passed
     changed=deepcopy(checked); changed['condition']['value']=6
     with pytest.raises(IntegrityError): await gk.promote(RUN,changed,candidates,None)
-    path=gk.registry.candidates_dir/RUN/'distinct_count_window/skill.py'; path.write_text(path.read_text()+'\n# podvržení\n')
+    path=gk.registry.candidates_dir/RUN/'distinct_count_window/skill.py'; path.write_text(path.read_text()+'\n# tampering\n')
     with pytest.raises(IntegrityError): await gk.promote(RUN,checked,candidates,None)
     assert 'distinct_count_window' not in {skill.name for skill in gk.installed_skills()}
 
@@ -201,7 +201,7 @@ async def test_promotion_requires_validation_and_rejects_recipe_and_disk_tamperi
 async def test_success_promotes_exact_recipe_and_forgets_run(gk):
     _,checked=await checked_tuned(gk,missing=True)
     await gk.evaluate_validation(RUN,checked)
-    promoted=await gk.promote(RUN,checked,gk.candidates_info(RUN),'Schváleno.')
+    promoted=await gk.promote(RUN,checked,gk.candidates_info(RUN),'Approved.')
     assert [s.name for s in promoted]==['distinct_count_window'] and promoted[0].status=='installed'
     assert gk.approved_rule('ssh_password_spraying')==checked
     assert not gk.candidates_info(RUN) and RUN not in gk._plans
@@ -214,17 +214,17 @@ async def test_failures_rejections_lessons_and_discard(gk):
     plan=gk._plans[RUN].model_copy(deep=True)
     gk.check_recipe(RUN,plan,checked)
     result=await gk.evaluate_tuning(RUN,checked)
-    gk.record_failure(RUN,'RULE_FAILED','Pravidlo nesplnilo hranice.',checked)
+    gk.record_failure(RUN,'RULE_FAILED','Rule nesplnilo hranice.',checked)
     lesson=gk.lessons(5,'ssh_password_spraying')[-1]
     assert lesson['kind']=='RULE_FAILED' and lesson['recipe_shape']['condition']['value']==9999
     assert 'recall' in lesson['text'].lower() and 'precision' in lesson['text'].lower()
-    gk.record_rejection(RUN,checked,'ssh_password_spraying','Snižte hranici.')
+    gk.record_rejection(RUN,checked,'ssh_password_spraying','Lower the threshold.')
     assert gk.lessons(1)[0]['kind']=='analyst_rejected'
     await gk.discard(RUN)
     assert not gk.candidates_info(RUN) and RUN not in gk._plans
     # Deadline and infrastructure failures are still audited and cleanly forgotten.
     gk.check_plan('run_bbbb',count_plan())
-    gk.record_failure('run_bbbb','INTERNAL_ERROR','Běh překročil časový limit.')
+    gk.record_failure('run_bbbb','INTERNAL_ERROR','The run exceeded its time limit.')
     await gk.discard('run_bbbb')
     assert 'run_bbbb' not in gk._plans
     assert json.loads(gk.audit.path.read_text().splitlines()[-1])['kind']=='run_failed'

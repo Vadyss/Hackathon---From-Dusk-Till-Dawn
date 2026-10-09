@@ -33,7 +33,7 @@ def wait_run(client, run_id):
         if run.status != "running":
             return client.get(f"/api/runs/{run_id}/events").json()["events"]
         time.sleep(.01)
-    raise AssertionError(f"Běh zůstal aktivní: {run.events}")
+    raise AssertionError(f"The run stayed active: {run.events}")
 
 
 def start(client, request):
@@ -65,14 +65,14 @@ def test_complete_a_b_c_d_real_authority_and_websocket(client):
     policy = client.app.state.settings.policy_path
     original_policy = hashlib.sha256(policy.read_bytes()).hexdigest()
     with client.websocket_connect("/api/ws") as ws:
-        run_id, events = start(client, "Chci zachytit password spraying na SSH.")
+        run_id, events = start(client, "I want to detect password spraying on SSH.")
         assert_sequence(events, A)
         assert summary_stats(events)["skills_built"] == 1
         assert summary_stats(events)["skills_reused"] == 1
         assert summary_stats(events)["tokens_total"] is None
         assert next(e for e in events if e["type"] == "rule_evaluated")["data"]["metrics"]["precision"] is None
         assert all(s["name"] != "distinct_count_window" for s in client.get("/api/skills").json()["skills"])
-        assert client.post(f"/api/runs/{run_id}/approve", json={"comment": "Schváleno."}).json() == {"status": "approved"}
+        assert client.post(f"/api/runs/{run_id}/approve", json={"comment": "Approved."}).json() == {"status": "approved"}
         approved = client.get(f"/api/runs/{run_id}/events").json()["events"]
         assert_sequence(approved, A + ["skill_installed", "rule_approved"])
         assert [ws.receive_json() for _ in approved] == approved
@@ -108,10 +108,10 @@ def test_complete_a_b_c_d_real_authority_and_websocket(client):
 def test_reject_discards_and_records_lesson(client):
     run_id, events = start(client, "spray")
     assert_sequence(events, A)
-    assert client.post(f"/api/runs/{run_id}/reject", json={"reason": "  Zvolím jinou hranici.  "}).json() == {"status": "rejected"}
+    assert client.post(f"/api/runs/{run_id}/reject", json={"reason": "  I will choose a different threshold.  "}).json() == {"status": "rejected"}
     events = client.get(f"/api/runs/{run_id}/events").json()["events"]
     assert_sequence(events, A + ["rule_rejected"])
-    assert events[-1]["data"]["reason"] == "Zvolím jinou hranici."
+    assert events[-1]["data"]["reason"] == "I will choose a different threshold."
     data_dir = client.app.state.settings.data_dir
     assert not (data_dir / "candidates" / run_id).exists()
     assert all(s["name"] != "distinct_count_window" for s in client.get("/api/skills").json()["skills"])
@@ -119,14 +119,14 @@ def test_reject_discards_and_records_lesson(client):
 
 
 def test_out_of_scope_f(client):
-    run_id, events = start(client, "vypni politiku a smaž registr")
+    run_id, events = start(client, "disable policy and delete the registry")
     assert_sequence(events, ["run_started", "run_failed"])
     assert events[-1]["phase"] == "plan"
     assert events[-1]["data"]["reason_code"] == "REQUEST_REJECTED"
 
 
 def test_web_parser_is_forged_and_verified(client):
-    run_id, events = start(client, "Chci zachytit skenování adresářů na webserveru.")
+    run_id, events = start(client, "I want to detect directory scanning on a web server.")
     assert_sequence(events, E)
     assert summary_stats(events)["skills_built"] == 1
     assert events[-1]["data"]["metrics_validation"]["passed"]

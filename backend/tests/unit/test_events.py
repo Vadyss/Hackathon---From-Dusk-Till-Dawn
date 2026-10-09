@@ -12,7 +12,7 @@ from tests.unit.api_support import METRICS
 
 
 @pytest.mark.parametrize("text", ["<img src=x onerror=alert(1)>", "<script>alert(1)</script>",
-                                  "**tučně** [odkaz](javascript:alert(1))", "A" * 300])
+                                  "**bold** [odkaz](javascript:alert(1))", "A" * 300])
 async def test_untrusted_request_is_preserved_as_plain_json(text):
     run = RunState("run_aabb", text)
     class Hub:
@@ -43,7 +43,7 @@ async def test_order_guards_and_voice_after_terminal():
     assert len(run.events[-1]["data"]["text"]) == 1000
     with pytest.raises(InternalOrderError):
         await emitter.emit(run, "plan_ready", "plan", {"steps": [], "skills_needed": []})
-    await emitter.emit(run, "run_failed", "approval", {"reason_code": "INTERNAL_ERROR", "reason": "Chyba."})
+    await emitter.emit(run, "run_failed", "approval", {"reason_code": "INTERNAL_ERROR", "reason": "Error."})
     with pytest.raises(InternalOrderError):
         await emitter.emit(run, "summary", "approval", {"text": "hello", "stats": run.stats.snapshot()})
     await emitter.emit(run, "voice_ready", "approval", {"audio_url": "/api/runs/run_aabb/audio"})

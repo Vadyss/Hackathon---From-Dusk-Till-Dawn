@@ -89,7 +89,7 @@ async def test_summary_event_serializes_cost_and_old_missing_cost_is_null():
     await emitter.emit(run, "run_started", "intake", {"request": run.request})
     await emitter.emit(run, "validation_done", "validation", {"dataset": "validation", "metrics": METRICS})
     run.stats.cost_usd = .031
-    event = await emitter.emit(run, "summary", "approval", {"text": "Hotovo.", "stats": run.stats.snapshot()})
+    event = await emitter.emit(run, "summary", "approval", {"text": "Done.", "stats": run.stats.snapshot()})
     assert event["data"]["stats"]["cost_usd"] == .031
     assert json.loads(json.dumps(event))["data"]["stats"]["cost_usd"] == .031
     assert RunCounters().snapshot()["cost_usd"] is None

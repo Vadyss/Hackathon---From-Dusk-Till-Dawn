@@ -1,4 +1,4 @@
-"""Consistent Czech errors, including framework validation failures."""
+"""Consistent English errors, including framework validation failures."""
 from __future__ import annotations
 
 import logging
@@ -30,18 +30,18 @@ def register_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def invalid_request(request: Request, exc: RequestValidationError):
-        return error_response(400, "INVALID_REQUEST", "Neplatný požadavek.")
+        return error_response(400, "INVALID_REQUEST", "Invalid request.")
 
     @app.exception_handler(HTTPException)
     async def http_error(request: Request, exc: HTTPException):
         if exc.status_code >= 500:
-            return error_response(exc.status_code, "INTERNAL_ERROR", "Neočekávaná chyba backendu.")
-        return error_response(exc.status_code, "INVALID_REQUEST", "Neplatný požadavek.")
+            return error_response(exc.status_code, "INTERNAL_ERROR", "Unexpected backend error.")
+        return error_response(exc.status_code, "INVALID_REQUEST", "Invalid request.")
 
     @app.exception_handler(Exception)
     async def internal_error(request: Request, exc: Exception):
-        logger.error("Neočekávaná chyba HTTP (%s).", type(exc).__name__)
-        response = error_response(500, "INTERNAL_ERROR", "Neočekávaná chyba backendu.")
+        logger.error("Unexpected HTTP error (%s).", type(exc).__name__)
+        response = error_response(500, "INTERNAL_ERROR", "Unexpected backend error.")
         # ServerErrorMiddleware runs outside CORSMiddleware.
         response.headers["Vary"] = "Origin"
         origin = request.headers.get("origin")

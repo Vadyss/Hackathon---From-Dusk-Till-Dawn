@@ -46,10 +46,10 @@ class VoiceService:
                     audio = bytearray()
                     async for chunk in answer.aiter_bytes():
                         if len(audio) + len(chunk) > MAX_AUDIO_BYTES:
-                            raise ValueError("Hlasové shrnutí překračuje limit 5 MB.")
+                            raise ValueError("The audio summary exceeds the 5 MB limit.")
                         audio.extend(chunk)
                 if not audio:
-                    raise ValueError("Prázdné hlasové shrnutí.")
+                    raise ValueError("Empty audio summary.")
                 async with run.lock:
                     run.audio = bytes(audio)
                 await self.emitter.emit(run, "voice_ready", "approval",
@@ -57,7 +57,7 @@ class VoiceService:
         except Exception as exc:
             # Remote bodies and exception messages can include secrets. Log
             # only the exception class, never headers, response text or repr.
-            LOGGER.warning("Hlasové shrnutí není dostupné (%s).", type(exc).__name__)
+            LOGGER.warning("The audio summary is unavailable (%s).", type(exc).__name__)
 
     async def close(self) -> None:
         await self.client.aclose()

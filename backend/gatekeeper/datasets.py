@@ -30,32 +30,32 @@ class DatasetStore:
                 continue
             match = re.fullmatch(r"([0-9a-f]{64})  ([^\n]+)", row)
             if match is None:
-                raise ValueError("Neplatný manifest dat.")
+                raise ValueError("Invalid dataset manifest.")
             sha, relative = match.groups()
             path = (self.root / relative).resolve()
             if not path.is_relative_to(self.root) or relative in self.digests:
-                raise ValueError("Neplatná cesta v manifestu dat.")
+                raise ValueError("Invalid dataset manifest path.")
             if hashlib.sha256(path.read_bytes()).hexdigest() != sha:
-                raise ValueError("Nesouhlasí otisk testovacích dat.")
+                raise ValueError("Test data digest mismatch.")
             self.digests[relative] = sha
         if "catalog.json" not in self.digests:
-            raise ValueError("Katalog nemá ověřený otisk.")
+            raise ValueError("The catalog has no verified digest.")
         self._catalog = json.loads((self.root / "catalog.json").read_text(encoding="utf-8"))
         expected = {"catalog.json"}
         for source, metadata in self._catalog["log_sources"].items():
             if re.fullmatch(r"[a-z][a-z0-9_]{0,49}", source) is None or metadata["file"] not in {"auth.log", "access.log"}:
-                raise ValueError("Neplatný zdroj dat.")
+                raise ValueError("Invalid data source.")
             attacks = {name for name, item in self._catalog["attack_types"].items() if item["log_source"] == source}
             for dataset in ("tuning", "validation"):
                 log_name = f"{source}/{dataset}/{metadata['file']}"
                 label_name = f"{source}/{dataset}/labels.json"
                 expected.update((log_name, label_name))
                 if log_name not in self.digests or label_name not in self.digests:
-                    raise ValueError("Datová sada nemá ověřené otisky.")
+                    raise ValueError("The dataset has no verified digests.")
                 lines = (self.root / log_name).read_text(encoding="utf-8").splitlines()
                 labels = json.loads((self.root / label_name).read_text(encoding="utf-8"))
                 if labels["dataset"] != dataset or labels["log_source"] != source or labels["line_count"] != len(lines):
-                    raise ValueError("Neplatná metadata datové sady.")
+                    raise ValueError("Invalid dataset metadata.")
                 counts = Counter()
                 all_indices: set[int] = set()
                 identifiers: set[str] = set()
@@ -65,15 +65,15 @@ class DatasetStore:
                             or len(set(indices)) != len(indices)
                             or any(type(i) is not int or not 0 <= i < len(lines) for i in indices)
                             or all_indices.intersection(indices)):
-                        raise ValueError("Neplatné štítky datové sady.")
+                        raise ValueError("Invalid dataset labels.")
                     identifiers.add(instance["id"])
                     all_indices.update(indices)
                     counts[instance["attack_type"]] += 1
                 if dict(counts) != labels["counts"] or any(counts[name] < min_instances for name in attacks):
-                    raise ValueError("Datová sada nemá dostatek instancí útoků.")
+                    raise ValueError("The dataset does not have enough attack instances.")
                 self._datasets[source, dataset] = Dataset(lines, labels)
         if set(self.digests) != expected:
-            raise ValueError("Manifest neodpovídá úplnému katalogu dat.")
+            raise ValueError("The manifest does not match the complete dataset catalog.")
 
     def catalog(self) -> dict:
         return {"log_sources": {name: {"description": item["description"]} for name, item in self._catalog["log_sources"].items()},
@@ -82,7 +82,7 @@ class DatasetStore:
 
     def load(self, source: str, dataset: str) -> Dataset:
         if (source, dataset) not in self._datasets:
-            raise ValueError("Neznámá datová sada.")
+            raise ValueError("Unknown dataset.")
         data = self._datasets[source, dataset]
         return Dataset(data.lines.copy(), copy.deepcopy(data.labels))
 

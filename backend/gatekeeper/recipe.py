@@ -59,7 +59,7 @@ def check_recipe(raw: object, plan: Plan, manifests_by_name: dict[str, dict], po
             seen.add((code, place))
             errors.append(Violation(code=code, detail=detail))
     if not isinstance(raw, dict):
-        return RecipeVerdict(violations=[Violation(code="INVALID_OUTPUT", detail="Recept musí být objekt JSON.")])
+        return RecipeVerdict(violations=[Violation(code="INVALID_OUTPUT", detail="The recipe must be a JSON object.")])
     def string_keys(value):
         if isinstance(value, dict):
             return all(isinstance(k, str) and string_keys(v) for k, v in value.items())
@@ -67,110 +67,110 @@ def check_recipe(raw: object, plan: Plan, manifests_by_name: dict[str, dict], po
             return all(string_keys(v) for v in value)
         return True
     if not string_keys(raw):
-        return RecipeVerdict(violations=[Violation(code="RECIPE_INVALID", detail="Klíče receptu musí být řetězce.")])
+        return RecipeVerdict(violations=[Violation(code="RECIPE_INVALID", detail="Recipe keys must be strings.")])
     required = {"name", "attack_type", "parser", "aggregation", "condition"}
     if not required <= raw.keys() or raw.keys() - required - {"description", "enrich", "filter"}:
-        add("RECIPE_INVALID", "root", "Recept má chybějící nebo neznámá pole.")
+        add("RECIPE_INVALID", "root", "The recipe has missing or unknown fields.")
     try:
         if len(canonical_json(raw)) > policy.recipe.max_recipe_chars:
-            add("RECIPE_INVALID", "size", "Recept překračuje limit velikosti.")
+            add("RECIPE_INVALID", "size", "The recipe exceeds the size limit.")
     except (TypeError, ValueError, RecursionError):
-        return RecipeVerdict(violations=[Violation(code="RECIPE_INVALID", detail="Recept není platný konečný JSON.")])
+        return RecipeVerdict(violations=[Violation(code="RECIPE_INVALID", detail="The recipe is not valid finite JSON.")])
     if not valid_name(raw.get("name")):
-        add("INVALID_NAME", "name", "Neplatný název pravidla.")
+        add("INVALID_NAME", "name", "Invalid rule name.")
     if raw.get("attack_type") != plan.attack_type:
-        add("RECIPE_INVALID", "attack_type", "Typ útoku neodpovídá plánu.")
+        add("RECIPE_INVALID", "attack_type", "The attack type does not match the plan.")
     if "description" in raw and (not isinstance(raw["description"], str) or len(raw["description"]) > 300):
-        add("RECIPE_INVALID", "description", "Popis receptu musí mít nejvýš 300 znaků.")
+        add("RECIPE_INVALID", "description", "The recipe description must contain at most 300 characters.")
     roles = {s.name: s.role for s in plan.skills}
     def get_skill(name, kind, place):
         if not isinstance(name, str) or roles.get(name) != kind or name not in manifests_by_name or manifests_by_name[name].get("kind") != kind:
-            add("UNKNOWN_SKILL", place, f"Dovednost {name} není v plánu jako {kind}.")
+            add("UNKNOWN_SKILL", place, f"Skill {name} is not in the plan as {kind}.")
             return {}
         return manifests_by_name[name]
     parser = get_skill(raw.get("parser"), "parser", "parser")
     fields = set(parser.get("outputs", [])) | {"_line", "ts"}
     enrich = raw.get("enrich", [])
     if not isinstance(enrich, list) or len(enrich) > 2:
-        add("RECIPE_INVALID", "enrich", "Recept může mít nejvýš dvě obohacení.")
+        add("RECIPE_INVALID", "enrich", "The recipe can have at most two enrichments.")
         enrich = []
     def params_check(params, manifest, place):
         if not isinstance(params, dict):
-            add("PARAM_INVALID", place, "Parametry musí být objekt.")
+            add("PARAM_INVALID", place, "Parameters must be an object.")
             return
         schema = manifest.get("params", {})
         for key, desc in schema.items():
             if desc.get("required") and key not in params:
-                add("PARAM_INVALID", place + "." + key, f"Chybí povinný parametr {key}.")
+                add("PARAM_INVALID", place + "." + key, f"Required parameter {key} is missing.")
         for key, value in params.items():
             pos = place + "." + key
             if forbidden_param(key, policy):
-                add("RECIPE_EXCEPTION", pos, f"Parametr {key} vytváří zakázanou výjimku.")
+                add("RECIPE_EXCEPTION", pos, f"Parameter {key} creates a forbidden exception.")
             if key not in schema or not matches_type(value, schema[key].get("type", "")):
-                add("PARAM_INVALID", pos, f"Neznámý parametr nebo chybný typ: {key}.")
+                add("PARAM_INVALID", pos, f"Unknown parameter or invalid type: {key}.")
                 continue
             desc = schema[key]
             if number(value) and ("min" in desc and value < desc["min"] or "max" in desc and value > desc["max"]):
-                add("PARAM_INVALID", pos, f"Parametr {key} je mimo povolený rozsah.")
+                add("PARAM_INVALID", pos, f"Parameter {key} is outside the allowed range.")
             if key == "window_s" and (type(value) is not int or not policy.recipe.window_s.min <= value <= policy.recipe.window_s.max):
-                add("PARAM_INVALID", pos, "Časové okno je mimo limity politiky.")
+                add("PARAM_INVALID", pos, "The time window is outside policy limits.")
             if key in {"group_by", "distinct_field", "ts_field"}:
                 targets = value if isinstance(value, list) else [value]
                 if not targets or any(not valid_field(t) or t not in fields for t in targets):
-                    add("UNKNOWN_FIELD", pos, f"Parametr {key} odkazuje na neznámé pole.")
+                    add("UNKNOWN_FIELD", pos, f"Parameter {key} references an unknown field.")
     for i, step in enumerate(enrich):
         pos = f"enrich[{i}]"
         if not isinstance(step, dict) or set(step) != {"skill", "params"}:
-            add("RECIPE_INVALID", pos, "Neplatný krok obohacení.")
+            add("RECIPE_INVALID", pos, "Invalid enrichment step.")
             continue
         manifest = get_skill(step["skill"], "enrichment", pos)
         params_check(step["params"], manifest, pos + ".params")
         fields.update(manifest.get("outputs", []))
     aggregation = raw.get("aggregation")
     if not isinstance(aggregation, dict) or set(aggregation) != {"skill", "params"}:
-        add("RECIPE_INVALID", "aggregation", "Neplatná agregace.")
+        add("RECIPE_INVALID", "aggregation", "Invalid aggregation.")
         aggregation = {}
     agg_manifest = get_skill(aggregation.get("skill"), "aggregation", "aggregation.skill")
     params_check(aggregation.get("params"), agg_manifest, "aggregation.params")
     filters = raw.get("filter", [])
     if not isinstance(filters, list) or len(filters) > policy.recipe.max_filter_conditions:
-        add("RECIPE_INVALID", "filter", "Neplatný seznam filtrů.")
+        add("RECIPE_INVALID", "filter", "Invalid filter list.")
         filters = []
     for i, condition in enumerate(filters):
         pos = f"filter[{i}]"
         if not isinstance(condition, dict) or set(condition) != {"field", "op", "value"}:
-            add("RECIPE_INVALID", pos, "Neplatný tvar filtru.")
+            add("RECIPE_INVALID", pos, "Invalid filter structure.")
             continue
         field, op, value = condition["field"], condition["op"], condition["value"]
         if not valid_field(field) or field not in fields:
-            add("UNKNOWN_FIELD", pos, "Filtr odkazuje na neznámé pole.")
+            add("UNKNOWN_FIELD", pos, "The filter references an unknown field.")
         if op not in policy.recipe.filter_ops:
-            add("RECIPE_INVALID", pos, "Neznámý operátor filtru.")
+            add("RECIPE_INVALID", pos, "Unknown filter operator.")
         if op in ("in", "not_in"):
             if not isinstance(value, list) or len(value) > policy.recipe.max_in_values or not all(scalar(v) for v in value):
-                add("RECIPE_INVALID", pos, "Členství vyžaduje omezený seznam skalárů.")
+                add("RECIPE_INVALID", pos, "Membership requires a bounded list of scalars.")
         elif not scalar(value):
-            add("RECIPE_INVALID", pos, "Filtr má neplatnou hodnotu.")
+            add("RECIPE_INVALID", pos, "The filter has an invalid value.")
         if op in policy.recipe.negation_ops and (field in policy.recipe.identity_fields or ip_literal(value)):
-            add("RECIPE_EXCEPTION", pos, f"Filtr vylučuje identitu v poli {field}: {clip(str(value), 50)}.")
+            add("RECIPE_EXCEPTION", pos, f"The filter excludes an identity in field {field}: {clip(str(value), 50)}.")
         if op in ("eq", "in") and field in policy.recipe.ip_identity_fields:
-            add("RECIPE_OVERFIT", pos, f"Filtr vybírá konkrétní IP v poli {field}.")
+            add("RECIPE_OVERFIT", pos, f"The filter selects a specific IP in field {field}.")
     condition = raw.get("condition")
     if not isinstance(condition, dict) or set(condition) != {"field", "op", "value"}:
-        add("RECIPE_INVALID", "condition", "Neplatná podmínka výstrahy.")
+        add("RECIPE_INVALID", "condition", "Invalid alert condition.")
     else:
         if not valid_field(condition["field"]) or condition["field"] not in agg_manifest.get("outputs", []):
-            add("UNKNOWN_FIELD", "condition", "Podmínka musí používat výstup agregace.")
+            add("UNKNOWN_FIELD", "condition", "The condition must use an aggregation output.")
         if condition["op"] not in policy.recipe.condition_ops or not number(condition["value"]):
-            add("RECIPE_INVALID", "condition", "Podmínka musí mít povolený operátor a číselnou hodnotu.")
+            add("RECIPE_INVALID", "condition", "The condition must have an allowed operator and a numeric value.")
     def scan(value, pos):
         if isinstance(value, dict):
             for key, child in value.items():
                 if pos.endswith("params") and forbidden_param(key, policy):
-                    add("RECIPE_EXCEPTION", pos + "." + key, f"Parametr {key} vytváří zakázanou výjimku.")
+                    add("RECIPE_EXCEPTION", pos + "." + key, f"Parameter {key} creates a forbidden exception.")
                 scan(child, (pos + "." if pos else "") + key)
             if value.get("op") in policy.recipe.negation_ops and ip_literal(value.get("value")):
-                add("RECIPE_EXCEPTION", pos, "Recept obsahuje vyloučení konkrétní IP adresy.")
+                add("RECIPE_EXCEPTION", pos, "The recipe excludes a specific IP address.")
         elif isinstance(value, list):
             for i, child in enumerate(value):
                 scan(child, f"{pos}[{i}]")
