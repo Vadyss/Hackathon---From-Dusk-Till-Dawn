@@ -83,7 +83,7 @@ class RunStore:
     async def create(self, request: str) -> RunState:
         async with self.lock:
             if any(r.status in ACTIVE_STATUSES for r in self.runs.values()):
-                raise ApiError(409, "RUN_ALREADY_ACTIVE", "Předchozí běh ještě neskončil.")
+                raise ApiError(409, "RUN_ALREADY_ACTIVE", "The previous run has not finished yet.")
             while len(self.runs) >= self.max_runs:
                 oldest = next(r for r in self.runs.values() if r.status in FINISHED_STATUSES)
                 if oldest.voice_task and not oldest.voice_task.done():
@@ -98,7 +98,7 @@ class RunStore:
 
     def get(self, run_id: str) -> RunState:
         if not re.fullmatch(r"run_[a-z0-9]{4,32}", run_id) or run_id not in self.runs:
-            raise ApiError(404, "RUN_NOT_FOUND", "Běh neexistuje.")
+            raise ApiError(404, "RUN_NOT_FOUND", "Run not found.")
         return self.runs[run_id]
 
     def list(self) -> list[dict]:

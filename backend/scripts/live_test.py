@@ -17,10 +17,10 @@ from urllib.parse import urlsplit
 import httpx
 
 REQUESTS = {
-    "a": "Chci zachytit password spraying na SSH.",
-    "b": "Chci zachytit distribuovaný brute force na SSH.",
-    "c": "Chci zachytit brute force na SSH.",
-    "e": "Chci zachytit skenování adresářů na webserveru.",
+    "a": "I want to detect password spraying on SSH.",
+    "b": "I want to detect distributed brute force on SSH.",
+    "c": "I want to detect brute force on SSH.",
+    "e": "I want to detect directory scanning on a web server.",
 }
 MAX_WAIT_S = 1500
 RUN_ID = re.compile(r"run_[a-z0-9]{4,32}")
@@ -209,7 +209,7 @@ async def run_live(base: str, scenario: str, output: Path, *, transport=None,
                     if status == "awaiting_approval" and not approval_submitted:
                         assert_approval_ready(events)
                         approved = await client.post(f"/api/runs/{run_id}/approve",
-                            json={"comment": "Ruční ověření skutečného backendu."})
+                            json={"comment": "Manual verification of the live backend."})
                         approved.raise_for_status()
                         evidence["approval_response"] = approved.json()
                         if evidence["approval_response"] != {"status": "approved"}:
@@ -250,11 +250,11 @@ def main() -> None:
     parsed = urlsplit(base)
     if (parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username
             or parsed.password or parsed.query or parsed.fragment):
-        parser.error("--base musí být HTTP(S) adresa bez přihlašovacích údajů a query.")
+        parser.error("--base must be an HTTP(S) URL without credentials or a query string.")
     try:
         summary = asyncio.run(run_live(base, arguments.scenario, arguments.output))
     except EvidenceError:
-        parser.error("--output obsahuje jiné nebo neplatné evidence; použijte odpovídající soubor.")
+        parser.error("--output contains mismatched or invalid evidence; use the matching file.")
     except KeyboardInterrupt:
         print('{"client_error":{"kind":"INTERRUPTED"}}', file=sys.stderr)
         raise SystemExit(130) from None

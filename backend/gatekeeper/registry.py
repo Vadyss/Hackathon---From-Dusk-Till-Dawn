@@ -33,7 +33,7 @@ def recipe_sha256(recipe: dict) -> str:
 
 def atomic_write(path: Path, payload: bytes) -> None:
     if path.is_symlink():
-        raise IntegrityError("Cílový soubor nesmí být symbolický odkaz.")
+        raise IntegrityError("The target file must not be a symbolic link.")
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.parent / f".tmp-{uuid.uuid4().hex}"
     try:
@@ -74,11 +74,11 @@ class Registry:
         if self.index_path.exists():
             self.index = json.loads(self.index_path.read_text(encoding="utf-8"))
             if not isinstance(self.index, dict) or self.index.get("format") != 1 or not isinstance(self.index.get("skills"), dict):
-                raise IntegrityError("Neplatný index registru.")
+                raise IntegrityError("Invalid registry index.")
             for name, entry in self.index["skills"].items():
                 require_name(name)
                 if not isinstance(entry, dict) or entry.get("origin") not in {"seed", "agent"}:
-                    raise IntegrityError("Neplatný záznam registru.")
+                    raise IntegrityError("Invalid registry entry.")
         else:
             self.index = {"format": 1, "skills": {}}
             atomic_json(self.index_path, self.index)
@@ -99,17 +99,17 @@ class Registry:
             for filename, field in (("skill.py", "sha256"), ("manifest.json", "manifest_sha256"), ("test_skill.py", "tests_sha256")):
                 path = safe_join(folder, filename)
                 if (folder / filename).is_symlink():
-                    raise IntegrityError("Artefakt nesmí být symbolický odkaz.")
+                    raise IntegrityError("An artifact must not be a symbolic link.")
                 payloads[filename] = path.read_bytes()
                 if expected.get(field) != sha256(payloads[filename]):
-                    raise IntegrityError(f"Nesouhlasí otisk souboru {filename}.")
+                    raise IntegrityError(f"Digest mismatch for file {filename}.")
             manifest = json.loads(payloads["manifest.json"])
             if manifest.get("name") != name or manifest.get("version") != expected.get("version") or manifest.get("kind") != expected.get("kind"):
-                raise IntegrityError("Manifest neodpovídá indexu.")
+                raise IntegrityError("The manifest does not match the index.")
             return payloads["skill.py"].decode("utf-8"), manifest, deepcopy(expected)
         except (OSError, ValueError, KeyError, TypeError) as error:
-            self._integrity(run_id, name, "Dovednost nemá platné artefakty a otisky.")
-            raise IntegrityError("Dovednost má porušenou integritu.") from error
+            self._integrity(run_id, name, "The skill has invalid artifacts or digests.")
+            raise IntegrityError("Skill integrity has been compromised.") from error
 
     def _entry(self, manifest: dict, origin: str, run_id: str | None, payloads: dict[str, bytes], created_at: str | None = None) -> dict:
         return {"version": manifest["version"], "kind": manifest["kind"], "origin": origin,
@@ -131,11 +131,11 @@ class Registry:
                 name = require_name(path.name)
                 manifest = json.loads((path / "manifest.json").read_text(encoding="utf-8"))
                 if manifest.get("name") != name:
-                    raise IntegrityError("Seed má neplatný manifest.")
+                    raise IntegrityError("The seed has an invalid manifest.")
                 old = self.index["skills"].get(name)
                 code = (path / "skill.py").read_bytes()
                 if old is not None and old["origin"] != "seed":
-                    raise IntegrityError("Seed koliduje s dovedností agenta.")
+                    raise IntegrityError("The seed conflicts with an agent skill.")
                 if old is not None and old["sha256"] == sha256(code):
                     continue
                 manifest["version"] = old["version"] + 1 if old else 1
@@ -188,7 +188,7 @@ class Registry:
                 try:
                     self._read_verified(self._folder(name), meta, None, name)
                 except (IntegrityError, ValueError):
-                    self._integrity(None, name, "Dovednost byla při startu vyřazena do karantény.")
+                    self._integrity(None, name, "The skill was quarantined at startup.")
                     path = self.registry_dir / name
                     if path.exists() or path.is_symlink():
                         quarantine = self.quarantine_dir / f"{name}__{uuid.uuid4().hex}"
@@ -202,11 +202,11 @@ class Registry:
     def save_candidate(self, run_id: str, manifest: dict, code: str, tests: str, attempt: int = 1) -> SkillInfo:
         manifest = deepcopy(manifest)
         if manifest.get("name") == "data":
-            raise ValueError("Název data je vyhrazen pro soukromé sady běhu.")
+            raise ValueError("The name data is reserved for private run datasets.")
         with self.lock:
             folder = self._candidate_path(run_id, manifest["name"])
             if manifest["name"] in self.index["skills"]:
-                raise IntegrityError("Dovednost je už nainstalovaná.")
+                raise IntegrityError("The skill is already installed.")
             payloads = {"manifest.json": (canonical_json(manifest) + "\n").encode("utf-8"),
                         "skill.py": code.encode("utf-8"), "test_skill.py": tests.encode("utf-8")}
             meta = self._entry(manifest, "agent", run_id, payloads)
@@ -229,14 +229,14 @@ class Registry:
         """Persist private verified run data through the registry writer only."""
         require_run_id(run_id)
         if set(datasets) != {"tuning", "validation"}:
-            raise ValueError("Neplatné sady Zkoušeče.")
+            raise ValueError("Invalid examiner datasets.")
         datasets = deepcopy(datasets)
         with self.lock:
             target = self._candidate_path(run_id, "data")
             payloads = {}
             for name, dataset in datasets.items():
                 if dataset.labels.get("dataset") != name or dataset.labels.get("log_source") != "ssh" or "seed" in dataset.labels:
-                    raise ValueError("Neplatná soukromá metadata Zkoušeče.")
+                    raise ValueError("Invalid private examiner metadata.")
                 payloads[f"{name}/auth.log"] = ("\n".join(dataset.lines) + "\n").encode("utf-8")
                 payloads[f"{name}/labels.json"] = (canonical_json(dataset.labels) + "\n").encode("utf-8")
             stage = target.parent / f".tmp-data-{uuid.uuid4().hex}"
@@ -245,7 +245,7 @@ class Registry:
                 for relative, payload in payloads.items():
                     atomic_write(safe_join(stage, relative), payload)
                 if target.exists():
-                    raise IntegrityError("Soukromá data tohoto běhu už existují.")
+                    raise IntegrityError("Private data for this run already exists.")
                 os.replace(stage, target)
                 _sync_dir(target.parent)
             finally:
@@ -263,9 +263,9 @@ class Registry:
             try:
                 meta = json.loads(safe_join(folder, "meta.json").read_text(encoding="utf-8"))
             except (ValueError, OSError) as error:
-                raise IntegrityError("Chybí metadata kandidáta.") from error
+                raise IntegrityError("Candidate metadata is missing.") from error
             if meta.get("created_by_run") != run_id or meta.get("origin") != "agent":
-                raise IntegrityError("Kandidát patří jinému běhu.")
+                raise IntegrityError("The candidate belongs to another run.")
             return self._read_verified(folder, meta, run_id, name)
 
     def manifests(self, run_id: str | None = None) -> list[dict]:
@@ -315,13 +315,13 @@ class Registry:
                 return value.model_dump(mode="json") if hasattr(value, "model_dump") else value
             tuning, validation = metric(record.get("metrics_tuning")), metric(record.get("metrics_validation"))
             if record.get("recipe_sha256") != recipe_sha256(recipe) or record.get("attack_type") != recipe.get("attack_type") or not isinstance(validation, dict) or validation.get("passed") is not True or not isinstance(tuning, dict) or tuning.get("passed") is not True:
-                self._integrity(run_id, recipe["name"], "Povýšení neodpovídá úspěšně ověřenému receptu.")
-                raise IntegrityError("Recept nebyl úspěšně ověřen v tomto běhu.")
+                self._integrity(run_id, recipe["name"], "Promotion does not match the successfully validated recipe.")
+                raise IntegrityError("The recipe was not successfully validated in this run.")
             candidates = self.candidate_infos(run_id)
             given = [s if isinstance(s, SkillInfo) else SkillInfo.model_validate(s) for s in new_skills]
             if len({s.name for s in given}) != len(given) or {s.name: s.model_dump() for s in given} != {s.name: s.model_dump() for s in candidates}:
-                self._integrity(run_id, recipe["name"], "Seznam dovedností neodpovídá kandidátům běhu.")
-                raise IntegrityError("Povýšení musí obsahovat přesně kandidáty tohoto běhu.")
+                self._integrity(run_id, recipe["name"], "The skill list does not match the run candidates.")
+                raise IntegrityError("Promotion must contain exactly the candidates from this run.")
             artifacts = {info.name: self.read_skill(run_id, info.name) for info in candidates}
             snapshots = {}
             for name, (_, _, meta) in artifacts.items():
@@ -329,24 +329,24 @@ class Registry:
                 payloads = {filename: safe_join(folder, filename).read_bytes() for filename in ("manifest.json", "skill.py", "test_skill.py")}
                 for filename, digest in (("manifest.json", "manifest_sha256"), ("skill.py", "sha256"), ("test_skill.py", "tests_sha256")):
                     if sha256(payloads[filename]) != meta[digest]:
-                        self._integrity(run_id, name, "Kandidát se během povýšení změnil.")
-                        raise IntegrityError("Kandidát se během povýšení změnil.")
+                        self._integrity(run_id, name, "The candidate changed during promotion.")
+                        raise IntegrityError("The candidate changed during promotion.")
                 snapshots[name] = payloads
             references = [recipe["parser"], recipe["aggregation"]["skill"]] + [s["skill"] for s in recipe.get("enrich", [])]
             used = {name: self.read_skill(run_id, name)[2] for name in references}
             expected_skills = record.get("skill_digests")
             if expected_skills is not None and expected_skills != {name: used[name]["sha256"] for name in used}:
-                self._integrity(run_id, recipe["name"], "Dovednosti se od ověření změnily.")
-                raise IntegrityError("Dovednosti se od ověření změnily.")
+                self._integrity(run_id, recipe["name"], "Skills have changed since validation.")
+                raise IntegrityError("Skills have changed since validation.")
             if any(name in self.index["skills"] for name in artifacts):
-                raise IntegrityError("Kandidát koliduje s registrem.")
+                raise IntegrityError("The candidate conflicts with the registry.")
             staged = []
             old_index = deepcopy(self.index)
             rule_path = safe_join(self.rules_dir, recipe["name"] + ".json")
             history_path = safe_join(self.rules_dir / "history", recipe["name"] + "__" + run_id + ".json")
             old_rule = rule_path.read_bytes() if rule_path.exists() else None
             if history_path.exists():
-                raise IntegrityError("Běh už má schválené pravidlo.")
+                raise IntegrityError("The run already has an approved rule.")
             installed = []
             try:
                 for name, (_, manifest, meta) in artifacts.items():
@@ -379,27 +379,27 @@ class Registry:
                 if old_rule is None: rule_path.unlink(missing_ok=True)
                 else: atomic_write(rule_path, old_rule)
                 try:
-                    self.audit.append("integrity_violation", run_id, {"rule_name": recipe["name"], "reason": "Povýšení bylo při chybě zápisu vráceno zpět."})
+                    self.audit.append("integrity_violation", run_id, {"rule_name": recipe["name"], "reason": "Promotion was rolled back after a write failure."})
                 except Exception:
-                    LOGGER.warning("Audit neumožnil zaznamenat vrácení povýšení.")
+                    LOGGER.warning("The audit could not record the promotion rollback.")
                 raise
             finally:
                 for stage in staged:
                     try:
                         if stage.exists(): shutil.rmtree(stage)
                     except OSError:
-                        LOGGER.warning("Dočasnou složku povýšení se nepodařilo uklidit.")
+                        LOGGER.warning("The temporary promotion directory could not be cleaned up.")
             try:
                 self.discard(run_id)
             except Exception:
-                LOGGER.warning("Schválený běh má zbytky kandidátů; uklidí se při příštím startu.")
+                LOGGER.warning("The approved run has leftover candidates; they will be cleaned up at the next startup.")
             return result
 
     def approved_rule(self, attack_type: str) -> dict | None:
         with self.lock:
             rules = []
             for path in self.rules_dir.glob("*.json"):
-                if path.is_symlink(): raise IntegrityError("Pravidlo nesmí být symbolický odkaz.")
+                if path.is_symlink(): raise IntegrityError("A rule must not be a symbolic link.")
                 record = json.loads(path.read_text(encoding="utf-8"))
                 if record.get("attack_type") == attack_type:
                     rules.append(record)

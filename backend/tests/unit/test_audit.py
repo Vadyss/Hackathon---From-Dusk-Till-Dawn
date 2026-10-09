@@ -42,7 +42,7 @@ def test_cli(tmp_path):
 
 def test_violation_codes_retained_without_source_or_secrets(tmp_path):
     audit=AuditLog(tmp_path)
-    record=audit.append('skill_rejected',detail={'violations':[{'code':'FORBIDDEN_IMPORT','detail':'Zakázaný import: socket.'}], 'code':'import socket', 'api_key':'secret'})
+    record=audit.append('skill_rejected',detail={'violations':[{'code':'FORBIDDEN_IMPORT','detail':'Forbidden import: socket.'}], 'code':'import socket', 'api_key':'secret'})
     assert record['detail']['violations'][0]['code']=='FORBIDDEN_IMPORT'
-    assert record['detail']['code']=='[redigováno]' and record['detail']['api_key']=='[redigováno]'
+    assert record['detail']['code']=='[redacted]' and record['detail']['api_key']=='[redacted]'
     assert verify_audit(audit.path)[0]

@@ -36,7 +36,7 @@ async def test_voice_disabled_without_both_settings(api_key, voice_id):
                            RecordingEmitter(), transport=httpx.MockTransport(forbidden))
     assert not service.enabled
     run = RunState("run_aabb", "test")
-    await service.speak(run, "Shrnutí.")
+    await service.speak(run, "Summary.")
     assert run.audio is None
     await service.close()
     assert service.client.is_closed
@@ -52,7 +52,7 @@ async def test_official_endpoint_headers_body_audio_and_event():
                            transport=httpx.MockTransport(handler))
     assert service.enabled
     run = RunState("run_aabb", "test")
-    await service.speak(run, "České shrnutí.")
+    await service.speak(run, "English summary.")
     assert run.audio == b"ID3fake-mp3"
     assert emitter.events == [("voice_ready", "approval", {"audio_url": "/runs/run_aabb/audio"})]
     request = observed[0]
@@ -60,7 +60,7 @@ async def test_official_endpoint_headers_body_audio_and_event():
     assert request.headers["xi-api-key"] == "test-tts-secret"
     assert request.headers["accept"] == "audio/mpeg"
     assert request.headers["content-type"] == "application/json"
-    assert json.loads(request.content) == {"text": "České shrnutí.", "model_id": "eleven_multilingual_v2"}
+    assert json.loads(request.content) == {"text": "English summary.", "model_id": "eleven_multilingual_v2"}
     assert request.extensions["timeout"]["read"] == 30
     await service.close()
 
@@ -90,10 +90,10 @@ async def test_failure_does_not_emit_or_change_run_and_never_logs_secret(kind, c
     service = VoiceService(settings(), emitter, transport=httpx.MockTransport(handler))
     run = RunState("run_aabb", "test", status="awaiting_approval")
     with caplog.at_level(logging.WARNING):
-        await service.speak(run, "Shrnutí.")
+        await service.speak(run, "Summary.")
     assert run.status == "awaiting_approval" and run.audio is None and emitter.events == []
     assert "test-tts-secret" not in caplog.text
-    assert "Hlasové shrnutí není dostupné" in caplog.text
+    assert "The audio summary is unavailable" in caplog.text
     await service.close()
 
 
@@ -109,7 +109,7 @@ async def test_audio_stream_stops_before_over_limit_response_is_consumed():
     emitter = RecordingEmitter()
     service = VoiceService(settings(), emitter, transport=httpx.MockTransport(handler))
     run = RunState("run_aabb", "test")
-    await service.speak(run, "Shrnutí.")
+    await service.speak(run, "Summary.")
     assert chunks_read == [4_000_000, 1_000_001]
     assert run.audio is None and emitter.events == []
     await service.close()
@@ -121,10 +121,10 @@ async def test_late_voice_after_terminal_uses_real_event_emitter():
     emitter = EventEmitter(WebSocketHub())
     run = RunState("run_aabb", "test")
     await emitter.emit(run, "run_started", "intake", {"request": run.request})
-    await emitter.emit(run, "summary", "approval", {"text": "Shrnutí.", "stats": run.stats.snapshot()})
-    await emitter.emit(run, "run_failed", "done", {"reason_code": "INTERNAL_ERROR", "reason": "Chyba."})
+    await emitter.emit(run, "summary", "approval", {"text": "Summary.", "stats": run.stats.snapshot()})
+    await emitter.emit(run, "run_failed", "done", {"reason_code": "INTERNAL_ERROR", "reason": "Error."})
     service = VoiceService(settings(), emitter, transport=httpx.MockTransport(handler))
-    await service.speak(run, "Shrnutí.")
+    await service.speak(run, "Summary.")
     assert run.events[-1]["type"] == "voice_ready" and run.events[-1]["phase"] == "approval"
     assert run.status == "failed" and run.phase == "done"
     assert run.audio == b"audio"
@@ -139,7 +139,7 @@ async def test_cancellation_propagates_for_clean_shutdown():
     emitter = RecordingEmitter()
     service = VoiceService(settings(), emitter, transport=httpx.MockTransport(handler))
     run = RunState("run_aabb", "test")
-    task = asyncio.create_task(service.speak(run, "Shrnutí."))
+    task = asyncio.create_task(service.speak(run, "Summary."))
     await started.wait()
     task.cancel()
     with pytest.raises(asyncio.CancelledError):

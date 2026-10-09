@@ -58,9 +58,9 @@ class SkillPolicy(Frozen):
         safe = set("re datetime collections itertools functools math statistics ipaddress json typing dataclasses bisect heapq string operator enum decimal fractions hashlib base64 binascii".split())
         forbidden = set("eval exec compile open __import__ input breakpoint globals locals vars getattr setattr delattr dir help exit quit memoryview print".split())
         if not set(self.allowed_imports) <= safe or not forbidden <= set(self.forbidden_calls):
-            raise ValueError("Politika oslabuje zakázané importy nebo volání.")
+            raise ValueError("The policy weakens forbidden imports or calls.")
         if self.network_allowed_domains or not {"exclude", "ignore", "whitelist", "allowlist", "skip"} <= set(self.forbidden_param_patterns):
-            raise ValueError("Politika oslabuje zákaz sítě nebo výjimek.")
+            raise ValueError("The policy weakens the network or exception prohibition.")
         return self
 
 
@@ -78,7 +78,7 @@ class WindowPolicy(Frozen):
     @model_validator(mode="after")
     def ordered(self):
         if self.min > self.max:
-            raise ValueError("Neplatný rozsah okna.")
+            raise ValueError("Invalid window range.")
         return self
 
 
@@ -96,9 +96,9 @@ class RecipePolicy(Frozen):
     @model_validator(mode="after")
     def protect_identities(self):
         if not {"src_ip", "dst_ip", "user", "username", "host", "src_host"} <= set(self.identity_fields):
-            raise ValueError("Chybí chráněné identity.")
+            raise ValueError("Protected identities are missing.")
         if not {"src_ip", "dst_ip"} <= set(self.ip_identity_fields) or set(self.negation_ops) != {"neq", "not_in"}:
-            raise ValueError("Chybí ochrana IP adres.")
+            raise ValueError("IP address protection is missing.")
         return self
 
 
@@ -132,7 +132,7 @@ def load_policy(path: Path) -> Policy:
     payload = Path(path).read_bytes()
     raw = yaml.safe_load(payload)
     if not isinstance(raw, dict) or "sha256" in raw:
-        raise ValueError("Neplatná struktura politiky.")
+        raise ValueError("Invalid policy structure.")
     return Policy.model_validate({**raw, "sha256": hashlib.sha256(payload).hexdigest()})
 
 

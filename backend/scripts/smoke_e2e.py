@@ -35,7 +35,7 @@ async def smoke(base: str, timeout_s: float, idle_s: float = 0) -> None:
         assert health.json() == {"status": "ok", "contract_version": 1}, health.text
         skills = (await client.get("/api/skills")).json()["skills"]
         assert "distinct_count_window" not in {skill["name"] for skill in skills}, (
-            "Smoke potřebuje nový demo registr. Použijte samostatný Compose projekt; existující data nemažte.")
+            "Smoke tests require a fresh demo registry. Use a separate Compose project; do not delete existing data.")
         async with connect(ws_url, open_timeout=10, ping_interval=20) as websocket:
             remaining = idle_s
             while remaining > 0:
@@ -51,9 +51,9 @@ async def smoke(base: str, timeout_s: float, idle_s: float = 0) -> None:
             collector = asyncio.create_task(collect())
             try:
                 for request, expected, suffix, stats in (
-                    ("Chci zachytit password spraying na SSH.", SEQUENCE_A,
+                    ("I want to detect password spraying on SSH.", SEQUENCE_A,
                      ["skill_installed", "rule_approved"], (1, 1)),
-                    ("Chci zachytit distribuovaný brute force na SSH.", SEQUENCE_B,
+                    ("I want to detect distributed brute force on SSH.", SEQUENCE_B,
                      ["rule_approved"], (0, 2)),
                 ):
                     created = await client.post("/api/runs", json={"request": request})
@@ -67,13 +67,13 @@ async def smoke(base: str, timeout_s: float, idle_s: float = 0) -> None:
                         if events and events[-1]["type"] in {"awaiting_approval", "run_failed"}:
                             break
                         if time.monotonic() - started > timeout_s:
-                            raise RuntimeError("Běh překročil časový limit smoke testu.")
+                            raise RuntimeError("The run exceeded the smoke test timeout.")
                         await asyncio.sleep(0.1)
                     assert [event["type"] for event in events] == expected, events
                     summary = next(event["data"] for event in events if event["type"] == "summary")
                     assert (summary["stats"]["skills_built"], summary["stats"]["skills_reused"]) == stats
                     assert summary["stats"]["tokens_total"] is None
-                    approved = await client.post(f"/api/runs/{run_id}/approve", json={"comment": "Kouřový test."})
+                    approved = await client.post(f"/api/runs/{run_id}/approve", json={"comment": "Smoke test."})
                     assert approved.status_code == 200 and approved.json() == {"status": "approved"}, approved.text
                     events = (await client.get(f"/api/runs/{run_id}/events")).json()["events"]
                     assert [event["type"] for event in events] == expected + suffix, events
@@ -86,7 +86,7 @@ async def smoke(base: str, timeout_s: float, idle_s: float = 0) -> None:
                 skills = (await client.get("/api/skills")).json()["skills"]
                 learned = next(skill for skill in skills if skill["name"] == "distinct_count_window")
                 assert learned["origin"] == "agent" and learned["status"] == "installed"
-                print("HTTP, WebSocket, skutečný sandbox, schválení a opětovné použití: OK.")
+                print("HTTP, WebSocket, real sandbox, approval and reuse: OK.")
             finally:
                 collector.cancel()
                 await asyncio.gather(collector, return_exceptions=True)
@@ -97,11 +97,11 @@ def main() -> None:
     parser.add_argument("--base", default="http://localhost:3000")
     parser.add_argument("--timeout", type=float, default=90)
     parser.add_argument("--idle-before-run", type=float, default=0,
-                        help="Ověří nečinný WebSocket po zadanou dobu před prvním během.")
+                        help="Verifies an idle WebSocket for the specified duration before the first run.")
     arguments = parser.parse_args()
     if (not math.isfinite(arguments.timeout) or arguments.timeout <= 0
             or not math.isfinite(arguments.idle_before_run) or arguments.idle_before_run < 0):
-        parser.error("Timeout musí být kladný a nečinnost nezáporná konečná hodnota.")
+        parser.error("Timeout must be positive and idle duration must be finite and nonnegative.")
     try:
         asyncio.run(smoke(arguments.base, arguments.timeout, arguments.idle_before_run))
     except (AssertionError, httpx.HTTPError, RuntimeError, TimeoutError, OSError) as exc:

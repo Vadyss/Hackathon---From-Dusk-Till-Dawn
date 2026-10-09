@@ -14,7 +14,7 @@ class Examiner:
         if (not isinstance(attack_description, str) or not attack_description.strip()
                 or len(attack_description) > 300 or not isinstance(log_format, str)
                 or not log_format.strip() or len(log_format) > 4000):
-            return ParseFailure("Neplatný popis útoku nebo formátu logu.")
+            return ParseFailure("Invalid attack description or log format.")
         user = untrusted("attack_description", attack_description) + "\n" + untrusted("log_format", log_format)
         for attempt in range(2):
             repair = "\nReturn only valid JSON matching {\"code\":\"Python source\"}, with no additional text." if attempt else ""
@@ -23,7 +23,7 @@ class Examiner:
             except LlmBudgetExceeded:
                 raise
             except LlmError:
-                return ParseFailure("Zkoušeči se nepodařilo připravit generátor dat.")
+                return ParseFailure("The examiner could not prepare a data generator.")
             result = response if isinstance(response, ParseFailure) else extract_json(response.text)
             if isinstance(result, dict):
                 code = result.get("code")
@@ -35,4 +35,4 @@ class Examiner:
                     # The caller owns AST checks and the isolated execution. No
                     # generator module is imported or evaluated in this process.
                     return {"code": code}
-        return ParseFailure("Zkoušeč nevrátil platný generátor dat.")
+        return ParseFailure("The examiner did not return a valid data generator.")

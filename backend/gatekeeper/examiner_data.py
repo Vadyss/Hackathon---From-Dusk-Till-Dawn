@@ -17,7 +17,7 @@ from .static_analysis import analyze_code
 from .types import SandboxProtocol
 
 
-ERROR = "Zkoušeč nevytvořil ověřitelná testovací data."
+ERROR = "The examiner did not produce verifiable test data."
 
 
 def _checked_generator(code: object, policy: Policy) -> str:

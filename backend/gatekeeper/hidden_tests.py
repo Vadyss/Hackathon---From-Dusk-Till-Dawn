@@ -46,22 +46,22 @@ async def run_hidden_tests(manifest: dict, code: str, sandbox: SandboxProtocol, 
     kind = manifest["kind"]
     params = fixture_params(manifest)
     empty = await invoke([], params)
-    check("hidden_empty", empty == [], "Prázdný vstup musí vrátit prázdný seznam.")
+    check("hidden_empty", empty == [], "Empty input must return an empty list.")
     if kind == "parser":
         inputs = list((parser_lines or [])[:50])
         result = await invoke(inputs, {})
         again = await invoke(inputs, {})
-        check("hidden_parser_shape", parser_output_valid(result, len(inputs)) and bool(result), "Parser musí vrátit objekty s platnými _line a číselným ts.")
-        check("hidden_parser_coverage", isinstance(result, list) and bool(inputs) and len({e.get("_line") for e in result if isinstance(e, dict) and type(e.get("_line")) is int}) >= .6 * len(inputs), "Parser musí rozpoznat aspoň 60 % skrytého vzorku.")
-        check("hidden_parser_outputs", isinstance(result, list) and all(any(isinstance(e, dict) and field in e for e in result) for field in manifest["outputs"]), "Parser nevytvořil všechna deklarovaná pole.")
-        check("hidden_determinism", result is not None and result == again, "Dovednost musí vracet deterministický výstup.")
+        check("hidden_parser_shape", parser_output_valid(result, len(inputs)) and bool(result), "A parser must return objects with valid _line and numeric ts.")
+        check("hidden_parser_coverage", isinstance(result, list) and bool(inputs) and len({e.get("_line") for e in result if isinstance(e, dict) and type(e.get("_line")) is int}) >= .6 * len(inputs), "A parser must recognize at least 60% of the hidden sample.")
+        check("hidden_parser_outputs", isinstance(result, list) and all(any(isinstance(e, dict) and field in e for e in result) for field in manifest["outputs"]), "The parser did not produce all declared fields.")
+        check("hidden_determinism", result is not None and result == again, "The skill must produce deterministic output.")
         nonsense = await invoke(["toto není platný log"], {})
-        check("hidden_nonsense", nonsense == [], "Nesmyslný řádek se musí přeskočit bez výjimky.")
+        check("hidden_nonsense", nonsense == [], "An invalid line must be skipped without an exception.")
     elif kind == "aggregation":
         inputs, _ = aggregation_fixture()
         result = await invoke(inputs, params)
         again = await invoke(inputs, params)
-        check("hidden_aggregation_shape", aggregation_output_valid(result, inputs, manifest["outputs"], params.get("group_by", "src_ip"), params.get("ts_field", "ts")) and bool(result), "Agregace musí vrátit skupinu, okno, číselné metriky a platné _lines.")
+        check("hidden_aggregation_shape", aggregation_output_valid(result, inputs, manifest["outputs"], params.get("group_by", "src_ip"), params.get("ts_field", "ts")) and bool(result), "An aggregation must return a group, window, numeric metrics and valid _lines.")
         known = set(manifest["outputs"]) & {"count", "distinct_count"}
         valid_values = isinstance(result, list) and len(result) == len(inputs)
         group_fields = params.get("group_by", "src_ip")
@@ -91,18 +91,18 @@ async def run_hidden_tests(manifest: dict, code: str, sandbox: SandboxProtocol, 
                     valid_values = False
                     break
             valid_values = valid_values and actual_keys == expected_keys
-        check("hidden_aggregation_values", valid_values, "Agregace má chybné hodnoty včetně rovnosti hranice okna.")
-        check("hidden_determinism", result is not None and result == again, "Dovednost musí vracet deterministický výstup.")
+        check("hidden_aggregation_values", valid_values, "Aggregation values are incorrect, including equality at the window boundary.")
+        check("hidden_determinism", result is not None and result == again, "The skill must produce deterministic output.")
         missing = {"_line": 1000, "ts": 1.0, "user": "unrelated"}
         without_group = await invoke(inputs + [missing], params)
-        check("hidden_missing_group", result is not None and result == without_group, "Událost bez pole skupiny se musí přeskočit.")
+        check("hidden_missing_group", result is not None and result == without_group, "An event without the grouping field must be skipped.")
     else:
         inputs = [{"_line": 0, "ts": 1.0, "src_ip": "192.0.2.1", "user": "alice"}, {"_line": 1, "ts": 2.0, "src_ip": "10.0.0.2", "user": "bob"}]
         result = await invoke(inputs, params)
         again = await invoke(inputs, params)
         shape = isinstance(result, list) and len(result) == len(inputs) and all(isinstance(e, dict) for e in result)
-        check("hidden_enrichment_order", shape and [e.get("_line") for e in result] == [e["_line"] for e in inputs], "Obohacení musí zachovat délku a pořadí událostí.")
-        check("hidden_enrichment_outputs", shape and all(all(field in e for field in manifest["outputs"]) for e in result), "Obohacení musí přidat deklarovaná pole.")
-        check("hidden_enrichment_preserves", shape and all(all(enriched.get(k) == v for k, v in old.items()) for old, enriched in zip(inputs, result)), "Obohacení nesmí změnit původní pole.")
-        check("hidden_determinism", result is not None and result == again, "Dovednost musí vracet deterministický výstup.")
+        check("hidden_enrichment_order", shape and [e.get("_line") for e in result] == [e["_line"] for e in inputs], "Enrichment must preserve the event count and order.")
+        check("hidden_enrichment_outputs", shape and all(all(field in e for field in manifest["outputs"]) for e in result), "Enrichment must add its declared fields.")
+        check("hidden_enrichment_preserves", shape and all(all(enriched.get(k) == v for k, v in old.items()) for old, enriched in zip(inputs, result)), "Enrichment must not change original fields.")
+        check("hidden_determinism", result is not None and result == again, "The skill must produce deterministic output.")
     return total, failures

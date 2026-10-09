@@ -64,7 +64,7 @@ class Settings:
             default = getattr(defaults, name)
             if isinstance(default, bool):
                 if raw.lower() not in {"true", "false", "1", "0"}:
-                    raise ValueError(f"Neplatná konfigurace {name.upper()}.")
+                    raise ValueError(f"Invalid configuration {name.upper()}.")
                 kwargs[name] = raw.lower() in {"true", "1"}
             elif isinstance(default, Path):
                 kwargs[name] = Path(raw)
@@ -81,17 +81,17 @@ class Settings:
             kwargs.setdefault(f"llm_model_{role}", model)
         settings = cls(**kwargs)
         if settings.llm_provider not in {"apify", "openai_compatible", "mock"}:
-            raise ValueError("Neplatný poskytovatel LLM.")
+            raise ValueError("Invalid LLM provider.")
         if settings.llm_reasoning_effort not in {"", "minimal", "low", "medium", "high", "xhigh", "max"}:
-            raise ValueError("Neplatná intenzita přemýšlení LLM.")
+            raise ValueError("Invalid LLM reasoning effort.")
         if settings.mock_scenario and settings.mock_scenario not in {"A", "B", "C", "D", "E", "F"}:
-            raise ValueError("Neplatný mock scénář.")
+            raise ValueError("Invalid mock scenario.")
         if not 0 <= settings.llm_max_retries <= 2 or not 1 <= settings.llm_max_calls_per_run <= 25:
-            raise ValueError("Neplatné limity LLM.")
+            raise ValueError("Invalid LLM limits.")
         if any(not math.isfinite(v) or v <= 0 for v in (settings.llm_timeout_s, settings.sandbox_timeout_s, settings.run_timeout_s)):
-            raise ValueError("Časové limity musí být kladné.")
+            raise ValueError("Timeouts must be positive.")
         if not 1 <= settings.llm_max_tokens <= settings.llm_max_tokens_cap or settings.mock_delay_ms < 0:
-            raise ValueError("Neplatné limity LLM.")
+            raise ValueError("Invalid LLM limits.")
         return settings
 
     def gatekeeper_config(self) -> GatekeeperConfig:

@@ -74,7 +74,7 @@ def count_call(max_calls: int) -> None:
     counters = LlmBudget.get()
     if counters is not None:
         if counters.llm_calls >= max_calls:
-            raise LlmBudgetExceeded("Překročen rozpočet volání jazykového modelu.")
+            raise LlmBudgetExceeded("The language model call budget was exceeded.")
         counters.llm_calls += 1
 
 
@@ -100,7 +100,7 @@ def _strict_json(text: str):
 
 def extract_json(text: str) -> dict | ParseFailure:
     if not isinstance(text, str):
-        return ParseFailure("Odpověď není řetězec.")
+        return ParseFailure("The response is not a string.")
     text = text.strip()
     if text.startswith("```") and text.endswith("```"):
         first_newline = text.find("\n")
@@ -111,7 +111,7 @@ def extract_json(text: str) -> dict | ParseFailure:
     except (ValueError, TypeError, RecursionError):
         start = text.find("{")
         if start == -1:
-            return ParseFailure("Odpověď neobsahuje JSON objekt.")
+            return ParseFailure("The response does not contain a JSON object.")
         depth = 0
         quoted = False
         escaped = False
@@ -134,10 +134,10 @@ def extract_json(text: str) -> dict | ParseFailure:
                     try:
                         value = _strict_json(text[start:index + 1])
                     except (ValueError, RecursionError):
-                        return ParseFailure("Odpověď obsahuje neplatný JSON.")
-                    return value if isinstance(value, dict) else ParseFailure("Výstup musí být JSON objekt.")
-        return ParseFailure("JSON objekt není uzavřený.")
-    return value if isinstance(value, dict) else ParseFailure("Výstup musí být JSON objekt.")
+                        return ParseFailure("The response contains invalid JSON.")
+                    return value if isinstance(value, dict) else ParseFailure("The output must be a JSON object.")
+        return ParseFailure("The JSON object is incomplete.")
+    return value if isinstance(value, dict) else ParseFailure("The output must be a JSON object.")
 
 
 def _usage_tokens(data: Any) -> int | None:
@@ -162,14 +162,14 @@ def _result(data: dict, model: str) -> LlmResult | ParseFailure:
     try:
         content = data["choices"][0]["message"]["content"]
         if not isinstance(content, str) or not content.strip():
-            return ParseFailure("Jazykový model nevrátil neprázdný text odpovědi.")
+            return ParseFailure("The language model did not return a nonempty text response.")
         try:
             content.encode("utf-8")
         except UnicodeError:
-            return ParseFailure("Odpověď jazykového modelu není platný UTF-8 text.")
+            return ParseFailure("The language model response is not valid UTF-8 text.")
         return LlmResult(content, _usage_tokens(data), model)
     except (KeyError, IndexError, TypeError, AttributeError, ValueError):
-        raise LlmError("Poskytovatel vrátil neplatnou odpověď.") from None
+        raise LlmError("The provider returned an invalid response.") from None
 
 
 def _provider_failed(settings, state: ProviderState, model: str) -> None:
@@ -193,11 +193,11 @@ def _primary_model(settings, model: str) -> bool:
 
 def _response_data(response, settings, state: ProviderState, model: str) -> tuple[Any, LlmResult | ParseFailure]:
     if len(getattr(response, "content", b"")) > 2_000_000:
-        raise LlmError("Odpověď jazykového modelu je příliš velká.")
+        raise LlmError("The language model response is too large.")
     try:
         data = response.json()
     except ValueError:
-        raise LlmError("Poskytovatel vrátil neplatnou odpověď.") from None
+        raise LlmError("The provider returned an invalid response.") from None
     count_tokens(_usage_tokens(data))
     count_cost(_usage_cost(data))
     result = _result(data, model)
@@ -238,7 +238,7 @@ class HttpLlmClient:
         state = LlmProviderState.get() or self._standalone_state
         key = (self.settings.apify_token or self.settings.llm_api_key) if self.settings.llm_provider == "apify" else self.settings.llm_api_key
         if not key:
-            raise LlmError("Chybí přístupový klíč jazykového modelu.")
+            raise LlmError("The language model API key is missing.")
         token_limit = min(max_tokens or self.settings.llm_max_tokens, self.settings.llm_max_tokens_cap)
         payload = {"messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
                    "max_tokens": token_limit, "temperature": temperature, **_reasoning(self.settings)}
@@ -260,7 +260,7 @@ class HttpLlmClient:
                     _provider_failed(self.settings, state, model)
                 else:
                     if not 200 <= response.status_code < 300:
-                        raise LlmError(f"Volání jazykového modelu selhalo (HTTP {response.status_code}).")
+                        raise LlmError(f"The language model request failed (HTTP {response.status_code}).")
                     try:
                         data, result = _response_data(response, self.settings, state, model)
                     except LlmError:
@@ -285,9 +285,9 @@ class HttpLlmClient:
                 logger.warning("LLM provider_error run_id=%s role=%s model=%s category=protocol",
                                state.run_id, role, model)
                 _provider_failed(self.settings, state, model)
-                raise LlmError("Volání jazykového modelu selhalo.") from None
+                raise LlmError("The language model request failed.") from None
             if attempt == self.settings.llm_max_retries:
-                raise LlmError("Volání jazykového modelu selhalo po opakování.") from None
+                raise LlmError("The language model request failed after retries.") from None
             await self._sleep((1, 3)[min(attempt, 1)])
             attempt += 1
 
@@ -347,10 +347,10 @@ def ask(prompt: str, system: str | None = None, model: str | None = None) -> str
     from orchestrator.config import Settings
     settings = Settings.from_env(load_env_file=True)
     if settings.llm_provider == "mock":
-        raise LlmError("Synchronní ask vyžaduje skutečného poskytovatele; mock používá async chat.")
+        raise LlmError("Synchronous ask requires a live provider; the mock uses async chat.")
     key = (settings.apify_token or settings.llm_api_key) if settings.llm_provider == "apify" else settings.llm_api_key
     if not key:
-        raise LlmError("Chybí přístupový klíč jazykového modelu.")
+        raise LlmError("The language model API key is missing.")
     messages = ([{"role": "system", "content": system}] if system else []) + [{"role": "user", "content": prompt}]
     state = LlmProviderState.get() or ProviderState()
     primary = model or settings.llm_model
@@ -371,7 +371,7 @@ def ask(prompt: str, system: str | None = None, model: str | None = None) -> str
                 _provider_failed(settings, state, model)
             else:
                 if not 200 <= response.status_code < 300:
-                    raise LlmError(f"Volání jazykového modelu selhalo (HTTP {response.status_code}).")
+                    raise LlmError(f"The language model request failed (HTTP {response.status_code}).")
                 try:
                     data, result = _response_data(response, settings, state, model)
                 except LlmError:
@@ -387,8 +387,8 @@ def ask(prompt: str, system: str | None = None, model: str | None = None) -> str
             _provider_failed(settings, state, model)
             retry = True
         except (requests.RequestException, ValueError):
-            raise LlmError("Volání jazykového modelu selhalo.") from None
+            raise LlmError("The language model request failed.") from None
         if attempt == settings.llm_max_retries:
-            raise LlmError("Volání jazykového modelu selhalo po opakování.") from None
+            raise LlmError("The language model request failed after retries.") from None
         time.sleep((1, 3)[min(attempt, 1)])
         attempt += 1

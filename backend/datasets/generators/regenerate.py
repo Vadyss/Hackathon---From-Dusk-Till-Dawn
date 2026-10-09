@@ -15,13 +15,13 @@ def regenerate(root: Path) -> None:
     write_web(root)
     catalog = {
         "log_sources": {
-            "ssh": {"description": "OpenSSH auth.log, časová razítka RFC 3339", "file": "auth.log"},
-            "web": {"description": "nginx access.log, formát combined", "file": "access.log"}},
+            "ssh": {"description": "OpenSSH auth.log with RFC 3339 timestamps", "file": "auth.log"},
+            "web": {"description": "nginx access.log in combined format", "file": "access.log"}},
         "attack_types": {
-            "ssh_bruteforce": {"log_source": "ssh", "description": "Jedna IP adresa zkouší mnoho hesel na jednoho uživatele."},
-            "ssh_password_spraying": {"log_source": "ssh", "description": "Jedna IP adresa zkouší málo hesel na mnoho různých uživatelů."},
-            "ssh_distributed_bruteforce": {"log_source": "ssh", "description": "Mnoho IP adres útočí na jednoho uživatele."},
-            "web_dir_bruteforce": {"log_source": "web", "description": "Jedna IP adresa rychle zkouší mnoho cest webového serveru."}}}
+            "ssh_bruteforce": {"log_source": "ssh", "description": "One IP address tries many passwords for one user."},
+            "ssh_password_spraying": {"log_source": "ssh", "description": "One IP address tries a few passwords across many different users."},
+            "ssh_distributed_bruteforce": {"log_source": "ssh", "description": "Many IP addresses attack one user."},
+            "web_dir_bruteforce": {"log_source": "web", "description": "One IP address rapidly probes many paths on a web server."}}}
     (root / "catalog.json").write_text(json.dumps(catalog, ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8", newline="\n")
     paths = [root / "catalog.json"] + sorted(root.glob("*/*/*.log")) + sorted(root.glob("*/*/labels.json"))
     manifest = "".join(f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.relative_to(root).as_posix()}\n" for path in sorted(paths))

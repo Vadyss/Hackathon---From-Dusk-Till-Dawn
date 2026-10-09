@@ -222,7 +222,7 @@ async def test_summary_fallback_after_llm_failure():
     roles = make_roles(Settings(llm_provider="mock"), ErrorClient([]))
     metrics = {"true_positives": 8, "false_positives": 0}
     text = await roles.summarizer.summarize("request", {}, {"name": "rule_name"}, metrics, metrics, {"skills_built": 1, "skills_reused": 1})
-    assert "rule_name" in text and "schválení" in text and len(text) <= 1000
+    assert "rule_name" in text and "approval" in text and len(text) <= 1000
 
 
 def completion(content="{}", *, finish_reason="stop", tokens=7, **message_fields):

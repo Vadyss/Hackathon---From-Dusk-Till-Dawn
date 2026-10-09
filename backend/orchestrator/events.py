@@ -29,47 +29,47 @@ class InternalOrderError(RuntimeError):
 def render_message(event_type: str, data: dict) -> str:
     names = lambda values: ", ".join(safe_name(v) for v in values)
     if event_type == "run_started":
-        text = "Přijat nový požadavek analytika."
+        text = "A new analyst request was received."
     elif event_type == "plan_ready":
-        text = f"Plán je připravený: {len(data['steps'])} kroků, dovednosti {names(data['skills_needed'])}."
+        text = f"Plan ready: {len(data['steps'])} steps, skills {names(data['skills_needed'])}."
     elif event_type == "skill_reused":
         skill = data["skill"]
-        text = f"Znovu používám dovednost {safe_name(skill['name'])} v{skill['version']}."
+        text = f"Reusing skill {safe_name(skill['name'])} v{skill['version']}."
     elif event_type == "capability_missing":
-        text = f"Chybí dovednosti: {names(s['name'] for s in data['skills'])}."
+        text = f"Missing skills: {names(s['name'] for s in data['skills'])}."
     elif event_type == "forge_started":
-        text = f"Kovárna staví dovednost {safe_name(data['skill'])} (pokus {data['attempt']} ze 3)."
+        text = f"The forge is building skill {safe_name(data['skill'])} (attempt {data['attempt']} of 3)."
     elif event_type == "skill_tests_failed":
-        text = f"Dovednost {safe_name(data['skill'])} neprošla testy: {data['tests_failed']} z {data['tests_total']} (pokus {data['attempt']} ze 3)."
+        text = f"Skill {safe_name(data['skill'])} failed tests: {data['tests_failed']} of {data['tests_total']} (attempt {data['attempt']} of 3)."
     elif event_type == "skill_candidate_ready":
-        text = f"Dovednost {safe_name(data['skill']['name'])} prošla testy (pokus {data['attempt']} ze 3)."
+        text = f"Skill {safe_name(data['skill']['name'])} passed tests (attempt {data['attempt']} of 3)."
     elif event_type == "rule_drafted":
-        text = f"Návrh pravidla {safe_name(data['recipe']['name'])} (pokus {data['attempt']} ze 3)."
+        text = f"Draft rule {safe_name(data['recipe']['name'])} (attempt {data['attempt']} of 3)."
     elif event_type in {"rule_evaluated", "validation_done"}:
         metrics = data["metrics"]
         number = lambda value: "—" if value is None else f"{value:.2f}"
-        text = (f"{'Ladicí' if event_type == 'rule_evaluated' else 'Ověřovací'} sada: "
+        text = (f"{'Tuning' if event_type == 'rule_evaluated' else 'Validation'} dataset: "
                 f"precision {number(metrics['precision'])}, recall {number(metrics['recall'])}, "
-                f"{'prošlo' if metrics['passed'] else 'neprošlo'}.")
+                f"{'passed' if metrics['passed'] else 'failed'}.")
     elif event_type == "summary":
-        text = "Shrnutí běhu je připravené."
+        text = "The run summary is ready."
     elif event_type == "voice_ready":
-        text = "Hlasové shrnutí je připravené."
+        text = "The audio summary is ready."
     elif event_type == "awaiting_approval":
-        text = f"Pravidlo {safe_name(data['recipe']['name'])} čeká na schválení analytikem."
+        text = f"Rule {safe_name(data['recipe']['name'])} is awaiting analyst approval."
     elif event_type == "skill_installed":
-        text = f"Dovednost {safe_name(data['skill']['name'])} v{data['skill']['version']} je nainstalovaná v registru."
+        text = f"Skill {safe_name(data['skill']['name'])} v{data['skill']['version']} is installed in the registry."
     elif event_type == "rule_approved":
-        text = f"Pravidlo {safe_name(data['rule_name'])} bylo schváleno."
+        text = f"Rule {safe_name(data['rule_name'])} was approved."
     elif event_type == "rule_rejected":
-        text = "Analytik pravidlo zamítl."
+        text = "The analyst rejected the rule."
     elif event_type == "policy_rejected":
-        target = {"plan": "plán", "skill": "dovednost", "recipe": "recept"}[data["target"]]
+        target = {"plan": "plan", "skill": "skill", "recipe": "recipe"}[data["target"]]
         name = f" {safe_name(data['name'])}" if data["name"] else ""
-        more = f" a další {len(data['violations']) - 1}" if len(data["violations"]) > 1 else ""
-        text = f"Vrátný zamítl {target}{name}: {clip(data['violations'][0]['code'], 60)}{more}."
+        more = f" and another {len(data['violations']) - 1}" if len(data["violations"]) > 1 else ""
+        text = f"The gatekeeper rejected {target}{name}: {clip(data['violations'][0]['code'], 60)}{more}."
     else:
-        text = f"Běh selhal ({data['reason_code']})."
+        text = f"Run failed ({data['reason_code']})."
     return clip(text, 200)
 
 
@@ -79,39 +79,39 @@ class EventEmitter:
 
     def assert_allowed(self, run: RunState, event_type: str, phase: str, data: dict) -> None:
         def fail(message):
-            logging.getLogger(__name__).error("Neplatné pořadí událostí: %s", message)
+            logging.getLogger(__name__).error("Invalid event order: %s", message)
             raise InternalOrderError(message)
 
         if event_type not in EVENT_TYPES or phase not in PHASES:
-            fail("Neznámý typ nebo fáze.")
+            fail("Unknown event type or phase.")
         if not run.events and event_type != "run_started":
-            fail("Běh musí začít run_started.")
+            fail("A run must begin with run_started.")
         if run.events and event_type == "run_started":
-            fail("Běh byl už zahájen.")
+            fail("The run has already started.")
         if run.status in FINISHED_STATUSES and event_type != "voice_ready":
-            fail("Událost po konci běhu.")
+            fail("Event after run completion.")
         if event_type in EVENT_PHASE and EVENT_PHASE[event_type] != phase:
-            fail("Nesprávná fáze události.")
+            fail("Incorrect event phase.")
         if event_type != "voice_ready" and PHASES.index(phase) < run.phase_index:
-            fail("Návrat do dřívější fáze.")
+            fail("Return to an earlier phase.")
         if event_type == "voice_ready" and not any(e["type"] == "summary" for e in run.events):
-            fail("Hlas před shrnutím.")
+            fail("Audio before summary.")
         if event_type == "awaiting_approval":
             validations = [e for e in run.events if e["type"] == "validation_done"]
             if not validations or not validations[-1]["data"]["metrics"]["passed"]:
-                fail("Schválení bez úspěšného ověření.")
+                fail("Approval without successful validation.")
             if not any(e["type"] == "summary" for e in run.events):
-                fail("Schválení před shrnutím.")
+                fail("Approval before summary.")
             if run.status != "running":
-                fail("Opakované čekání na schválení.")
+                fail("Repeated awaiting_approval event.")
         if event_type in {"skill_installed", "rule_approved", "rule_rejected"}:
             if not run.decision_taken or run.status != "awaiting_approval":
-                fail("Rozhodnutí bez schválení nebo zamítnutí analytikem.")
+                fail("Decision without analyst approval or rejection.")
 
     async def emit(self, run: RunState, event_type: str, phase: str, data: dict) -> dict:
         async with run.lock:
             if event_type not in EVENT_TYPES:
-                raise InternalOrderError("Neznámý typ události.")
+                raise InternalOrderError("Unknown event type.")
             clean = DATA_MODELS[event_type].model_validate(data).model_dump(mode="json")
             self.assert_allowed(run, event_type, phase, clean)
             event = EventEnvelope(type=event_type, run_id=run.run_id, seq=run.last_seq + 1,

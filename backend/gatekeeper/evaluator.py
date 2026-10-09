@@ -72,7 +72,7 @@ def calculate_metrics(incidents: list[dict], labels: dict, attack_type: str, thr
     instances = labels["instances"]
     targets = [i for i in instances if i["attack_type"] == attack_type]
     if not targets:
-        raise ValueError("Datová sada nemá žádnou cílovou instanci útoku.")
+        raise ValueError("The dataset has no target attack instance.")
     all_attack_lines = set().union(*(set(i["lines"]) for i in instances))
     detected_lines = set().union(*(set(i["_lines"]) for i in incidents)) if incidents else set()
     target_lines = set().union(*(set(i["lines"]) for i in targets))
@@ -103,14 +103,14 @@ def feedback_examples(incidents: list[dict], rows: list[dict], events: list[dict
         peak = max((r.get(metric, 0) for r in rows if set(r["_lines"]) & line_set), default=0)
         users = len({e.get("user") for e in relevant_events if isinstance(e.get("user"), str)})
         ips = len({e.get("src_ip") for e in relevant_events if isinstance(e.get("src_ip"), str)})
-        examples.append(f"Útok typu {recipe['attack_type']}: {len(line_set)} řádků za {duration} s, {users} různých uživatelů, {ips} různých IP; nejvyšší hodnota metriky v jeho okně: {peak}.")
+        examples.append(f"Attack type {recipe['attack_type']}: {len(line_set)} lines over {duration} s, {users} distinct users, {ips} distinct IPs; peak metric in its window: {peak}.")
     false_alerts = [i for i in incidents if not set(i["_lines"]) & all_attack_lines][:3]
     for incident in false_alerts:
         group_fields = recipe["aggregation"]["params"]["group_by"]
         group_fields = [group_fields] if isinstance(group_fields, str) else group_fields
         fields = ", ".join(group_fields)
         peak = max((r.get(metric, 0) for r in incident["rows"]), default=0)
-        examples.append(f"Poplach na běžném provozu: skupina podle {fields}, nejvyšší hodnota {metric} = {peak}, {len(incident['_lines'])} řádků.")
+        examples.append(f"Alert on normal traffic: group by {fields}, peak value {metric} = {peak}, {len(incident['_lines'])} lines.")
     return examples
 
 
@@ -120,15 +120,15 @@ async def evaluate_recipe(recipe: dict, lines: list[str], labels: dict,
     async def run(name, inputs, params, validator):
         code, manifest, meta = skill_loader(name)
         if len(canonical_json(inputs).encode("utf-8")) > policy.sandbox.max_input_bytes:
-            raise ValueError("Vstup sandboxu překračuje limit velikosti.")
+            raise ValueError("Sandbox input exceeds the size limit.")
         result = await sandbox.run(code, inputs, params, allowed_imports=list(policy.skills.allowed_imports), timeout_s=policy.sandbox.run_timeout_s)
         valid = result.get("status") == "ok" and validator(result.get("result"), manifest)
         if valid:
             return result["result"]
         if audit is not None:
-            audit.append("integrity_violation", run_id, {"skill": name, "reason": "Neplatný výstup dovednosti při měření."})
+            audit.append("integrity_violation", run_id, {"skill": name, "reason": "Invalid skill output during evaluation."})
         if meta.get("origin") == "seed":
-            raise SkillExecutionError("Výchozí dovednost vrátila neplatný výstup.")
+            raise SkillExecutionError("A seed skill returned invalid output.")
         return None
     events = await run(recipe["parser"], lines, {}, lambda output, _: parser_output_valid(output, len(lines)))
     if events is None:

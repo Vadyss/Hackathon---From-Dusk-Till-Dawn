@@ -9,10 +9,10 @@ def fallback_summary(plan, recipe, metrics_tuning, metrics_validation, stats) ->
     metrics = json_value(metrics_validation)
     built = counters.get("skills_built", 0)
     reused = counters.get("skills_reused", 0)
-    return (f"Pravidlo {recipe.get('name', 'detekce')} prošlo laděním i nezávislým ověřením. "
-            f"Nové dovednosti: {built}, znovu použité: {reused}. "
-            f"Ověření: zachyceno {metrics.get('true_positives', 0)} útoků, "
-            f"falešné poplachy {metrics.get('false_positives', 0)}. Čeká na vaše schválení.")[:1000]
+    return (f"Rule {recipe.get('name', 'detection')} passed tuning and independent validation. "
+            f"New skills: {built}, reused: {reused}. "
+            f"Validation: detected {metrics.get('true_positives', 0)} attacks, "
+            f"false positives {metrics.get('false_positives', 0)}. Awaiting your approval.")[:1000]
 
 
 class Summarizer:

@@ -21,7 +21,7 @@ def offline_test_environment(monkeypatch, tmp_path):
 
     def guarded_connect(sock, address):
         if isinstance(address, tuple) and address[0] not in {"127.0.0.1", "::1", "localhost"}:
-            raise AssertionError("Test se pokusil připojit mimo localhost.")
+            raise AssertionError("A test attempted to connect outside localhost.")
         return original(sock, address)
 
     monkeypatch.setattr(socket.socket, "connect", guarded_connect)

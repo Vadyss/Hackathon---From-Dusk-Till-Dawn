@@ -34,13 +34,13 @@ def verify_audit(path: Path) -> tuple[bool, list[str]]:
         try:
             record = json.loads(line)
             if type(record.get("n")) is not int or record["n"] != sequence + 1:
-                errors.append(f"Řádek {index}: neplatné pořadí.")
+                errors.append(f"Line {index}: invalid sequence.")
             if record.get("prev_hash") != previous or record.get("hash") != record_hash(record):
-                errors.append(f"Řádek {index}: porušený řetěz otisků.")
+                errors.append(f"Line {index}: broken digest chain.")
             sequence = record["n"]
             previous = record["hash"]
         except (ValueError, TypeError, KeyError, AttributeError):
-            errors.append(f"Řádek {index}: neplatný záznam JSON.")
+            errors.append(f"Line {index}: invalid JSON entry.")
     return not errors, errors
 
 
@@ -54,7 +54,7 @@ def bounded_detail(value: object, depth: int = 0) -> object:
             if key == "code" and set(value) == {"code", "detail"} and isinstance(child, str) and re.fullmatch(r"[A-Z][A-Z0-9_]{1,49}", child):
                 output[key] = child
             elif key.lower() in {"code", "tests", "token", "secret", "api_key", "authorization", "apify_token", "llm_api_key", "elevenlabs_api_key"}:
-                output[key] = "[redigováno]"
+                output[key] = "[redacted]"
             else:
                 output[key] = bounded_detail(child, depth + 1)
         return output
@@ -74,7 +74,7 @@ class AuditLog:
         self.path = Path(data_dir) / "audit.jsonl"
         self.path.parent.mkdir(parents=True, exist_ok=True)
         if self.path.is_symlink():
-            raise ValueError("Audit nesmí být symbolický odkaz.")
+            raise ValueError("The audit must not be a symbolic link.")
         self.lock = threading.Lock()
         self.n = 0
         self.previous = ZERO_HASH
@@ -88,7 +88,7 @@ class AuditLog:
                 except ValueError:
                     continue
         if not ok:
-            LOGGER.warning("Auditní řetěz byl porušen: %s", errors[:3])
+            LOGGER.warning("The audit chain was compromised: %s", errors[:3])
             self.append("audit_chain_broken", detail={"errors": errors[:10]})
 
     def append(self, kind: str, run_id: str | None = None, detail: dict | None = None) -> dict:

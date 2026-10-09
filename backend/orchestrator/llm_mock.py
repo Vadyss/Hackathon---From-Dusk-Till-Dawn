@@ -16,7 +16,8 @@ def scenario_for(request: str, override: str = "") -> str:
         return override
     text = request.lower()
     for words, scenario in ((["spray"], "A"), (["distrib"], "B"), (["inject"], "C"), (["fail"], "D"),
-                            (["web", "adresář", "skenov"], "E"), (["politik", "vypni", "smaž"], "F")):
+                            (["web", "directory", "scan", "adresář", "skenov"], "E"),
+                            (["policy", "disable", "delete", "politik", "vypni", "smaž"], "F")):
         if any(word in text for word in words):
             return scenario
     return "A"
@@ -35,9 +36,9 @@ def manifest(name: str) -> dict:
     if name == "distinct_count_window":
         params["distinct_field"] = {"type": "string", "required": True}
     result = {"name": name, "version": 1, "kind": "parser" if parser else "aggregation",
-              "description": "Převede nginx combined log na události." if parser else
-              "Počítá různé hodnoty pole v časovém okně pro každou skupinu." if name == "distinct_count_window" else
-              "Počítá podíl neúspěšných událostí v časovém okně pro každou skupinu.",
+              "description": "Parses nginx combined access logs into events." if parser else
+              "Counts distinct field values in a sliding time window for each group." if name == "distinct_count_window" else
+              "Calculates the failure ratio in a sliding time window for each group.",
               "entrypoint": "run", "inputs": "lines" if parser else "events",
               "outputs": ["src_ip", "method", "path", "protocol", "status", "bytes", "referer", "user_agent"] if parser else
               ["distinct_count"] if name == "distinct_count_window" else ["failure_ratio"],
@@ -77,7 +78,7 @@ class MockLlm:
             elif name == "nginx_access_parser":
                 tests = fixture("nginx_tests.py")
             else:
-                raise LlmError("Mock nezná požadovanou dovednost.")
+                raise LlmError("The mock does not support the requested skill.")
             output = {"manifest": manifest(name), "code": code, "tests": tests}
         elif role in {"rule_author", "rule"}:
             output = self._recipe(scenario, context, attempt)
@@ -86,13 +87,13 @@ class MockLlm:
             output = {"text": fallback_summary(context["plan"], context["recipe"], context["metrics_tuning"],
                                                 context["metrics_validation"], context["stats"])}
         else:
-            raise LlmError("Mock nezná požadovanou roli.")
+            raise LlmError("The mock does not support the requested role.")
         return LlmResult(json.dumps(output, ensure_ascii=False), None, "mock")
 
     def _plan(self, scenario, context):
         if scenario == "F":
             return {"intent": "out_of_scope", "log_source": "ssh", "attack_type": "unsupported", "skills": [],
-                    "goal": "Požadavek nespadá do detekce útoků.", "steps": []}
+                    "goal": "The request is outside attack detection scope.", "steps": []}
         source = "web" if scenario == "E" else "ssh"
         attack = {"A": "ssh_password_spraying", "B": "ssh_distributed_bruteforce", "C": "ssh_bruteforce",
                   "D": "ssh_password_spraying", "E": "web_dir_bruteforce"}[scenario]
@@ -111,8 +112,8 @@ class MockLlm:
                                  "For each event, compute the requested metric in its inclusive sliding window for the group."}
             skills.append(skill)
         return {"intent": "detection_rule", "log_source": source, "attack_type": attack,
-                "goal": "Vytvořit opakovaně použitelné pravidlo detekce požadovaného útoku.",
-                "steps": ["Rozparsovat logy", "Vybrat podezřelé události", "Spočítat metriku v časovém okně", "Ověřit pravidlo na nezávislé sadě"],
+                "goal": "Create a reusable detection rule for the requested attack.",
+                "steps": ["Parse the logs", "Select suspicious events", "Calculate the metric in a time window", "Validate the rule on an independent dataset"],
                 "skills": skills}
 
     def _recipe(self, scenario, context, attempt):
@@ -121,7 +122,7 @@ class MockLlm:
         if context.get("prior") and scenario != "C":
             prior = context["prior"]
             recipe = prior.get("recipe", prior)
-            return {"recipe": recipe, "explanation": "Používám dříve schválené pravidlo a znovu ověřuji jeho výsledky."}
+            return {"recipe": recipe, "explanation": "Reusing a previously approved rule and validating its results again."}
         recipe = {"name": plan["attack_type"], "attack_type": plan["attack_type"],
                   "parser": "nginx_access_parser" if scenario == "E" else "ssh_parser",
                   "filter": [{"field": "status" if scenario == "E" else "outcome", "op": "eq", "value": 404 if scenario == "E" else "failure"}],
@@ -133,7 +134,7 @@ class MockLlm:
             recipe["aggregation"]["params"]["distinct_field"] = "src_ip" if scenario == "B" else "user"
         if scenario == "C" and attempt == 1:
             recipe["filter"].append({"field": "src_ip", "op": "neq", "value": "198.51.100.23"})
-        return {"recipe": recipe, "explanation": "Hledám neobvyklé množství neúspěšných událostí v pětiminutovém okně."}
+        return {"recipe": recipe, "explanation": "Detecting an unusual number of failed events in a five-minute window."}
 
     async def close(self):
         pass

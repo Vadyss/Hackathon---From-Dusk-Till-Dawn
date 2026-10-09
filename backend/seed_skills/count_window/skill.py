@@ -1,3 +1,4 @@
+"""Count events by group in an inclusive sliding time window."""
 from collections import defaultdict
 
 

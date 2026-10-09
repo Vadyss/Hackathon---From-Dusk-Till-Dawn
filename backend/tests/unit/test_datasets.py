@@ -119,5 +119,5 @@ def test_tampering_fails_closed(tmp_path):
     subprocess.run([sys.executable, str(DATA / "generators" / "regenerate.py"), "--output", str(tmp_path)], check=True)
     with (tmp_path / "ssh/tuning/auth.log").open("a") as stream:
         stream.write("tampered\n")
-    with pytest.raises(ValueError, match="otisk"):
+    with pytest.raises(ValueError, match="Test data digest mismatch"):
         DatasetStore(tmp_path)

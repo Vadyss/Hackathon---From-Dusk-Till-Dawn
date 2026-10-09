@@ -30,7 +30,7 @@ class Lessons:
         self.path = Path(data_dir) / "lessons.jsonl"
         self.path.parent.mkdir(parents=True, exist_ok=True)
         if self.path.is_symlink():
-            raise ValueError("Poučení nesmí být symbolický odkaz.")
+            raise ValueError("Lessons must not be a symbolic link.")
         self.lock = threading.Lock()
 
     def record(self, run_id: str, attack_type: str, kind: str, text: str, recipe: dict | None = None) -> dict:

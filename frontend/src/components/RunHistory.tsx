@@ -74,11 +74,11 @@ function RunHistoryModal({ onClose, runs, organization, onSelect }: Omit<RunHist
   }, []);
 
   const matches = useMemo(() => {
-    const search = query.trim().toLocaleLowerCase();
+    const search = query.trim().toLocaleLowerCase("en-US");
     return runs.filter((run) => {
       const entry = metadata[run.run_id];
       const inFilter = filter === "archived" ? entry?.archived : !entry?.archived && (filter !== "pinned" || entry?.pinned);
-      return inFilter && `${titleFor(run)} ${runRequest(run) || ""} ${run.run_id}`.toLocaleLowerCase().includes(search);
+      return inFilter && `${titleFor(run)} ${runRequest(run) || ""} ${run.run_id}`.toLocaleLowerCase("en-US").includes(search);
     }).sort((a, b) => Number(Boolean(metadata[b.run_id]?.pinned)) - Number(Boolean(metadata[a.run_id]?.pinned)));
   }, [runs, metadata, titleFor, query, filter]);
 
